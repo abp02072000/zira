@@ -1,0 +1,27 @@
+{
+  "name": "zira-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=@zira/app-landing",
+    "dev:landing": "npm run dev --workspace=@zira/app-landing",
+    "dev:porteur": "npm run dev --workspace=@zira/app-porteur",
+    "dev:investisseur": "npm run dev --workspace=@zira/app-investisseur",
+    "dev:moderateur": "npm run dev --workspace=@zira/app-moderateur",
+    "build": "npm run build --workspace=@zira/app-landing",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.5.2"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "zod": "^4.4.3"
+  }
+}

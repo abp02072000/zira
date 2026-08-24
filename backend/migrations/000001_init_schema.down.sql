@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS project_status_history;
+DROP TABLE IF EXISTS project_images;
+DROP TABLE IF EXISTS project_documents;
+DROP TABLE IF EXISTS project_invitations;
+DROP TABLE IF EXISTS project_members;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS kyc_documents;
+DROP TABLE IF EXISTS kyc_verifications;
+DROP TABLE IF EXISTS username_history;
+DROP TABLE IF EXISTS users;
