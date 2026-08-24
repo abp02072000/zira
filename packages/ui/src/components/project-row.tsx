@@ -4,7 +4,7 @@ import type { Sector } from "@/lib/mock-data";
 
 interface ProjectRowProps {
   name: string;
-  sector: Sector;
+  sector: Sector | string;
   meta?: string;
   statusLabel: string;
   statusClass: string;

@@ -18,6 +18,12 @@ import type {
 } from "../types";
 import { formatUSD, formatDate } from "../lib/mock-data";
 import { localStore } from "../lib/local-store";
+import {
+  fetchMyProjects,
+  createProject as apiCreateProject,
+  updateProject as apiUpdateProject,
+  submitKyc as apiSubmitKyc,
+} from "../lib/api-client";
 import { useAuth } from "./auth-context";
 
 interface AppDataContextValue {
@@ -74,9 +80,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const currentInvestorId = profile?.id || (profile?.role === "investisseur" ? profile.id : "inv-user-1");
   const currentModeratorId = profile?.id || (profile?.role === "moderateur" ? profile.id : "mod-1");
 
-  // Subscribe to local store changes
+  // Subscribe to local store changes and fetch real projects from Go backend
   useEffect(() => {
-    console.log("[AppDataContext] 🚀 AppDataProvider mounted, registering store subscriber...");
+    console.log("[AppDataContext] 🚀 AppDataProvider mounted, registering store subscriber & fetching backend data...");
     const syncState = () => {
       const u = localStore.getUsers();
       const p = localStore.getProjects();
@@ -84,15 +90,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       const k = localStore.getKycRequests();
       const m = localStore.getModerationActivity();
       const n = localStore.getNotifications();
-
-      console.log("[AppDataContext] 🔄 State synchronized from localStore:", {
-        projectsCount: p.length,
-        investmentsCount: i.length,
-        usersCount: u.length,
-        kycRequestsCount: k.length,
-        moderationActionsCount: m.length,
-        notificationsCount: n.length,
-      });
 
       setUsers([...u]);
       setProjects([...p]);
@@ -105,6 +102,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
     syncState();
     const unsubscribe = localStore.subscribe(syncState);
+
+    // Initial fetch from real Go backend
+    fetchMyProjects()
+      .then((liveProjects) => {
+        if (liveProjects && liveProjects.length > 0) {
+          console.log("[AppDataContext] 📡 Live projects fetched from Go Backend:", liveProjects.length);
+          syncState();
+        }
+      })
+      .catch((err) => {
+        console.warn("[AppDataContext] Initial fetch from Go backend (using local fallback):", err);
+      });
+
     return () => {
       console.log("[AppDataContext] 🛑 AppDataProvider unmounting, unsubscribing from store...");
       unsubscribe();
@@ -113,6 +123,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const refreshData = useCallback(async () => {
     console.log("[AppDataContext] 🔄 Manual refreshData() triggered");
+    try {
+      await fetchMyProjects();
+    } catch {
+      // ignore
+    }
     setUsers([...localStore.getUsers()]);
     setProjects([...localStore.getProjects()]);
     setInvestments([...localStore.getInvestments()]);
@@ -132,14 +147,15 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       status: projectData.status || "active",
     };
 
-    console.log("[AppDataContext] ➕ addProject called:", {
-      inputData: projectData,
-      generatedProject: newProject,
-      activePorteurId: porteurId,
-      profileId: profile?.id,
-    });
+    console.log("[AppDataContext] ➕ addProject called, submitting to Go backend:", newProject);
 
-    const saved = localStore.saveProject(newProject);
+    let saved: Project;
+    try {
+      saved = await apiCreateProject(newProject);
+    } catch (err) {
+      console.warn("[AppDataContext] Go API createProject fallback to localStore:", err);
+      saved = localStore.saveProject(newProject);
+    }
 
     // Auto-generate notifications
     localStore.addNotification({
@@ -147,7 +163,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       universe: "porteur",
       userId: porteurId,
       title: "Projet créé avec succès",
-      message: `Votre projet "${newProject.name}" est désormais enregistré et soumis pour revue.`,
+      message: `Votre projet "${saved.name}" est désormais enregistré et soumis pour revue.`,
       type: "project",
       actionUrl: "/porteur/projets",
       read: false,
@@ -158,7 +174,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       id: `notif_${Date.now()}_m`,
       universe: "moderation",
       title: "Nouveau projet soumis",
-      message: `Le projet "${newProject.name}" a été créé et requiert un audit de conformité.`,
+      message: `Le projet "${saved.name}" a été créé et requiert un audit de conformité.`,
       type: "project",
       actionUrl: "/moderateur/projets",
       read: false,
@@ -170,14 +186,19 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [profile?.id]);
 
   const updateProject = useCallback(async (projectData: Partial<Project> & { id: string }): Promise<Project> => {
-    console.log("[AppDataContext] ✏️ updateProject called:", projectData);
-    const existing = localStore.getProjectById(projectData.id);
-    if (!existing) {
-      console.error("[AppDataContext] ❌ updateProject error: Project not found with id", projectData.id);
-      throw new Error("Projet introuvable");
+    console.log("[AppDataContext] ✏️ updateProject called for Go backend:", projectData);
+    let saved: Project;
+    try {
+      saved = await apiUpdateProject(projectData.id, projectData);
+    } catch (err) {
+      console.warn("[AppDataContext] Go API updateProject fallback to localStore:", err);
+      const existing = localStore.getProjectById(projectData.id);
+      if (!existing) {
+        throw new Error("Projet introuvable");
+      }
+      const merged: Project = { ...existing, ...projectData };
+      saved = localStore.saveProject(merged);
     }
-    const merged: Project = { ...existing, ...projectData };
-    const saved = localStore.saveProject(merged);
     return saved;
   }, []);
 
@@ -270,19 +291,23 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const userEmail = profile?.email || "utilisateur@zira-invest.com";
     const type = profile?.role === "investisseur" ? "investisseur" : "porteur";
 
-    const kycReq: KycRequest = {
-      id: `kyc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      userId,
-      userName,
-      userEmail,
-      submittedAt: new Date().toISOString(),
-      type,
-      documents,
-      status: "pending",
-    };
-
-    console.log("[AppDataContext] 📋 submitKyc called:", kycReq);
-    const saved = localStore.saveKycRequest(kycReq);
+    console.log("[AppDataContext] 📋 submitKyc called, transmitting to Go backend:", documents);
+    let saved: KycRequest;
+    try {
+      saved = await apiSubmitKyc(documents);
+    } catch {
+      const kycReq: KycRequest = {
+        id: `kyc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        userId,
+        userName,
+        userEmail,
+        submittedAt: new Date().toISOString(),
+        type,
+        documents,
+        status: "pending",
+      };
+      saved = localStore.saveKycRequest(kycReq);
+    }
 
     // Auto-generate notifications
     localStore.addNotification({

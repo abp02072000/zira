@@ -1,41 +1,10 @@
-const FORBIDDEN_NAME_KEYWORDS = [
-  "date",
-  "naiss",
-  "lieu",
-  "adresse",
-  "origine",
-  "code",
-  "carte",
-  "electeur",
-  "délivrance",
-  "delivrance",
-];
+export function getInitials(name?: string): string {
+  if (!name) return "ZI";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-export function extractIdentityNameCandidate(rawValue?: string): string | null {
-  const value = (rawValue ?? "").replace(/\s+/g, " ").trim();
-  if (!value) return null;
-
-  const cleaned = value
-    .replace(/\d+/g, " ")
-    .replace(/[^A-Za-zÀ-ÖØ-öø-ÿ'’ -]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (!cleaned || cleaned.length < 4) return null;
-
-  const words = cleaned
-    .split(" ")
-    .map((word) => word.replace(/^[-'’]+|[-'’]+$/g, ""))
-    .filter(Boolean);
-
-  if (words.length < 2 || words.length > 6) return null;
-
-  const candidate = words.join(" ");
-  const lower = candidate.toLowerCase();
-
-  if (FORBIDDEN_NAME_KEYWORDS.some((keyword) => lower.includes(keyword))) {
-    return null;
-  }
-
-  return candidate;
+export function formatUserName(name?: string): string {
+  return name || "Utilisateur";
 }

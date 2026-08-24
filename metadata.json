@@ -1,6 +1,6 @@
 {
-  "name": "ZIRA Invest",
-  "description": "Plateforme d'investissement participatif et de levée de fonds en equity pour startups et PME en Afrique (RDC).",
+  "name": "Zira Invest",
+  "description": "Plateforme d'investissement participatif et de financement pour porteurs de projets et investisseurs en Afrique",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

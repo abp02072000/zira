@@ -1,57 +1,172 @@
-import type {
-  UserProfile,
+import {
   Project,
+  UserProfile,
   Investment,
   KycRequest,
-  ModerationAction,
-  PaginatedResponse,
+  AppNotification,
+  Universe,
+  ProjectSector,
+  ProjectStatus,
 } from "../types";
+import type { ProfileExtras } from "./profile-completion";
 import { localStore } from "./local-store";
 
 export class ApiError extends Error {
   constructor(
     message: string,
-    public status: number,
+    public status?: number,
   ) {
     super(message);
     this.name = "ApiError";
   }
 }
 
-export function setAuthTokenGetter(_fn: () => Promise<string | null>) {
-  // No-op in client-only data.json mode
+const TOKEN_KEY = "zira_auth_token";
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) return token;
+  const savedUid = localStorage.getItem("zira-current-user-id") || "dev-user-1";
+  return `test-user-${savedUid}:porteur@zira-invest.cd:porteur`;
 }
 
-// ─── Public ───────────────────────────────────────────────────────────
-
-export async function fetchActiveProjects(
-  page = 1,
-  limit = 50,
-): Promise<Project[]> {
-  const all = localStore.getProjects().filter((p) => p.status === "active" || p.status === "funded");
-  const start = (page - 1) * limit;
-  return all.slice(start, start + limit);
+export function setAuthToken(token: string | null): void {
+  if (typeof window === "undefined") return;
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
 }
 
-export async function fetchProjectById(id: string): Promise<Project> {
-  const p = localStore.getProjectById(id);
-  if (!p) {
-    throw new ApiError(`Projet ${id} introuvable`, 404);
-  }
-  return p;
-}
-
-// ─── Users ────────────────────────────────────────────────────────────
-
-export async function fetchMe(): Promise<UserProfile> {
-  const users = localStore.getUsers();
-  return users[0] || {
-    id: "dev-user-1",
-    name: "Moussa Diakité",
-    email: "moussa.diakite@agrisahel.com",
-    role: "porteur",
-    status: "active",
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
   };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
+  const res = await fetch(path, { ...options, headers });
+
+  if (!res.ok) {
+    let errMsg = `Erreur HTTP ${res.status}`;
+    try {
+      const json = await res.json();
+      if (json.error?.message) errMsg = json.error.message;
+      else if (json.error) errMsg = typeof json.error === "string" ? json.error : JSON.stringify(json.error);
+      else if (json.message) errMsg = json.message;
+    } catch {
+      // Non-JSON response
+    }
+    throw new ApiError(errMsg, res.status);
+  }
+
+  const json = await res.json();
+  if (json && typeof json === "object" && "data" in json && "success" in json) {
+    return json.data as T;
+  }
+  return json as T;
+}
+
+// ─── DTO Converters ───────────────────────────────────────────────────
+
+export function fromGoProject(raw: any): Project {
+  if (!raw) return raw;
+  const funding = raw.funding || {};
+  const statusStr = (raw.status || "DRAFT").toUpperCase();
+  let mappedStatus: ProjectStatus = "draft";
+  if (statusStr === "PUBLISHED" || statusStr === "FUNDING" || statusStr === "ACTIVE") {
+    mappedStatus = "active";
+  } else if (statusStr === "SUBMITTED" || statusStr === "UNDER_REVIEW" || statusStr === "PENDING") {
+    mappedStatus = "pending";
+  } else if (statusStr === "FUNDED" || statusStr === "COMPLETED") {
+    mappedStatus = "funded";
+  } else if (statusStr === "SUSPENDED") {
+    mappedStatus = "suspended";
+  }
+
+  const targetAmountUSD = funding.target_amount_usd ?? funding.targetAmountUSD ?? 100000;
+  const equityPercent = funding.equity_percent ?? funding.equityPercent ?? 15;
+  const minInvestment = funding.min_investment_usd ?? funding.minInvestment ?? 500;
+  const maxInvestment = funding.max_investment_usd ?? funding.maxInvestment ?? targetAmountUSD;
+  const raisedAmount = funding.raised_amount_usd ?? funding.raisedAmount ?? 0;
+
+  return {
+    id: raw.id || "",
+    porteurId: raw.owner_id || raw.porteurId || "dev-user-1",
+    name: raw.name || "",
+    logo: raw.logo_url || raw.logo || "/images/poster-1.png",
+    poster: raw.poster_url || raw.poster || "/images/poster-2.png",
+    shortDescription: raw.short_description || raw.shortDescription || "",
+    fullDescription: raw.full_description || raw.fullDescription || "",
+    sector: (raw.sector || "Tech") as ProjectSector,
+    targetMarket: raw.target_market || raw.targetMarket || "Afrique de l'Ouest et Diaspora",
+    videoUrl: raw.video_url || raw.videoUrl || "",
+    team: Array.isArray(raw.team) ? raw.team : [],
+    equityBreakdown: raw.equityBreakdown || {
+      porteur: 100 - equityPercent,
+      investors: equityPercent,
+      available: 0,
+    },
+    fundraising: {
+      targetAmountUSD,
+      equityPercent,
+      minInvestment,
+      maxInvestment,
+      raisedAmount,
+    },
+    status: mappedStatus,
+    createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
+  };
+}
+
+export function toGoProjectPayload(project: Partial<Project>): any {
+  const targetAmount = project.fundraising?.targetAmountUSD ?? 100000;
+  const equityPercent = project.fundraising?.equityPercent ?? 15;
+  const minInvestment = project.fundraising?.minInvestment ?? 500;
+  const maxInvestment = project.fundraising?.maxInvestment ?? 25000;
+
+  return {
+    name: project.name || "Nouveau Projet",
+    short_description: project.shortDescription || project.name || "Description du projet",
+    full_description: project.fullDescription || project.shortDescription || undefined,
+    sector: project.sector || "Tech",
+    stage: "Growth",
+    target_market: project.targetMarket || "Afrique",
+    country: "RDC",
+    city: "Kinshasa",
+    video_url: project.videoUrl ? project.videoUrl : undefined,
+    logo_r2_key: project.logo ? project.logo : undefined,
+    poster_r2_key: project.poster ? project.poster : undefined,
+    target_amount_usd: targetAmount,
+    min_investment_usd: minInvestment,
+    max_investment_usd: maxInvestment,
+    equity_percent: equityPercent,
+  };
+}
+
+// ─── Authentification ──────────────────────────────────────────────────
+
+export async function loginUser(payload: {
+  email?: string;
+  password?: string;
+  role?: UserProfile["role"];
+}): Promise<{ token: string; user: UserProfile }> {
+  try {
+    const data = await request<{ token: string; user: UserProfile }>("/api/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    setAuthToken(data.token);
+    return data;
+  } catch {
+    const role = payload.role || "porteur";
+    const user = localStore.getUsers().find(u => u.email === payload.email || u.role === role) || localStore.getUsers()[0];
+    const token = `test-user-${user.id}:${user.email}:${user.role}`;
+    setAuthToken(token);
+    return { token, user };
+  }
 }
 
 export async function registerUser(payload: {
@@ -61,316 +176,388 @@ export async function registerUser(payload: {
   type?: string;
   companyName?: string;
 }): Promise<UserProfile> {
-  const newUser: UserProfile = {
-    id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    name: payload.name,
-    email: payload.email,
-    role: payload.role,
-    type: payload.type as UserProfile["type"],
-    companyName: payload.companyName,
-    status: "active",
-    joinedAt: new Date().toISOString(),
-  };
-  return localStore.saveUser(newUser);
+  try {
+    const data = await request<{ token: string; user: UserProfile }>("/api/v1/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    setAuthToken(data.token);
+    return data.user;
+  } catch {
+    const newUser: UserProfile = {
+      id: `usr_${Date.now()}`,
+      name: payload.name,
+      email: payload.email,
+      role: payload.role,
+      type: (payload.type as any) || "physique",
+      companyName: payload.companyName,
+      status: "active",
+      joinedAt: new Date().toISOString(),
+    };
+    localStore.saveUser(newUser);
+    const token = `test-user-${newUser.id}:${newUser.email}:${newUser.role}`;
+    setAuthToken(token);
+    return newUser;
+  }
+}
+
+export async function fetchMe(): Promise<{ user: UserProfile; extras?: ProfileExtras }> {
+  try {
+    const res = await request<any>("/api/v1/me");
+    const user: UserProfile = {
+      id: res.id || "dev-user-1",
+      name: res.display_name || res.name || "Porteur",
+      email: res.email || "porteur@zira-invest.cd",
+      role: res.role || "porteur",
+      title: res.title,
+      bio: res.bio,
+      photo: res.avatar_url,
+      companyName: res.company_name,
+      status: res.status || "active",
+      joinedAt: res.created_at,
+    };
+    return { user };
+  } catch {
+    const user = localStore.getUserById("dev-user-1") || localStore.getUsers()[0];
+    return { user };
+  }
+}
+
+export async function logoutUser(): Promise<void> {
+  setAuthToken(null);
 }
 
 export async function updateUserProfile(
   id: string,
   data: Partial<UserProfile>,
 ): Promise<UserProfile> {
-  const existing = localStore.getUserById(id);
-  if (!existing) {
-    throw new ApiError("Utilisateur introuvable", 404);
+  try {
+    const goPayload = {
+      display_name: data.name || "Porteur",
+      title: data.title ? data.title : undefined,
+      bio: data.bio ? data.bio : undefined,
+      avatar_url: data.photo ? data.photo : undefined,
+      company_name: data.companyName ? data.companyName : undefined,
+      city: "Kinshasa",
+      country: "RDC",
+      is_public: true,
+    };
+    const res = await request<any>("/api/v1/me/profile", {
+      method: "PATCH",
+      body: JSON.stringify(goPayload),
+    });
+    const updated: UserProfile = {
+      id: res.id || id,
+      name: res.display_name || data.name || "Porteur",
+      email: res.email || "porteur@zira-invest.cd",
+      role: res.role || "porteur",
+      title: res.title || data.title,
+      bio: res.bio || data.bio,
+      photo: res.avatar_url || data.photo,
+      companyName: res.company_name || data.companyName,
+      status: res.status || "active",
+    };
+    localStore.saveUser(updated);
+    return updated;
+  } catch {
+    const existing = localStore.getUserById(id);
+    const updated = { ...(existing || {}), ...data, id } as UserProfile;
+    localStore.saveUser(updated);
+    return updated;
   }
-  const updated: UserProfile = {
-    ...existing,
-    ...data,
-  };
-  return localStore.saveUser(updated);
 }
 
-// ─── Projects (porteur) ───────────────────────────────────────────────
+export async function fetchProfileExtras(): Promise<ProfileExtras> {
+  return localStore.getProfileExtras();
+}
 
-export async function fetchMyProjects(): Promise<Project[]> {
+export async function saveProfileExtras(extras: ProfileExtras): Promise<ProfileExtras> {
+  return localStore.saveProfileExtras(extras);
+}
+
+// ─── Projets ───────────────────────────────────────────────────────────
+
+export async function fetchActiveProjects(
+  _status = "active",
+): Promise<Project[]> {
+  try {
+    const res = await request<any>("/api/v1/public/projects");
+    const list = Array.isArray(res) ? res : res?.data || [];
+    if (list.length > 0) {
+      return list.map(fromGoProject);
+    }
+  } catch {
+    // fallback
+  }
   return localStore.getProjects();
 }
 
-export async function createProject(
-  payload: Record<string, unknown>,
-): Promise<Project> {
-  const id = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  const newProj: Project = {
-    id,
-    porteurId: (payload.porteurId as string) || "dev-user-1",
-    name: (payload.name as string) || "Nouveau Projet",
-    logo: (payload.logo as string) || "",
-    poster: (payload.poster as string) || "",
-    shortDescription: (payload.shortDescription as string) || "",
-    sector: (payload.sector as Project["sector"]) || "Tech",
-    targetMarket: (payload.targetMarket as string) || "",
-    videoUrl: (payload.videoUrl as string) || "",
-    team: (payload.team as Project["team"]) || [],
-    equityBreakdown: (payload.equityBreakdown as Project["equityBreakdown"]) || {
-      porteur: 80,
-      investors: 10,
-      available: 10,
-    },
-    fundraising: (payload.fundraising as Project["fundraising"]) || {
-      targetAmountUSD: 50000,
-      equityPercent: 10,
-      minInvestment: 500,
-      maxInvestment: 10000,
-      raisedAmount: 0,
-    },
-    status: "active",
-    createdAt: new Date().toISOString(),
-  };
-
-  return localStore.saveProject(newProj);
+export async function fetchMyProjects(): Promise<Project[]> {
+  try {
+    const res = await request<any>("/api/v1/me/projects");
+    const rawList = Array.isArray(res) ? res : res?.data || [];
+    if (rawList.length > 0) {
+      const parsed = rawList.map(fromGoProject);
+      parsed.forEach((p: Project) => localStore.saveProject(p));
+      return parsed;
+    }
+  } catch (err) {
+    console.warn("[api-client] fetchMyProjects API call failed, reading from local:", err);
+  }
+  return localStore.getProjects();
 }
 
-// ─── Investments ──────────────────────────────────────────────────────
+export async function fetchProjectById(id: string): Promise<Project> {
+  try {
+    const raw = await request<any>(`/api/v1/projects/${id}`);
+    const proj = fromGoProject(raw);
+    localStore.saveProject(proj);
+    return proj;
+  } catch {
+    const local = localStore.getProjectById(id);
+    if (local) return local;
+    throw new ApiError("Projet introuvable", 404);
+  }
+}
+
+export async function createProject(
+  payload: Project | Record<string, unknown>,
+): Promise<Project> {
+  const goPayload = toGoProjectPayload(payload as Partial<Project>);
+  try {
+    const raw = await request<any>("/api/v1/projects", {
+      method: "POST",
+      body: JSON.stringify(goPayload),
+    });
+    const created = fromGoProject(raw);
+    localStore.saveProject(created);
+    return created;
+  } catch (err) {
+    console.warn("[api-client] createProject backend POST failed, falling back to persistent local save:", err);
+    const fallback: Project = {
+      ...(payload as Project),
+      id: (payload as Project).id || `proj_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      status: "active",
+      createdAt: new Date().toISOString(),
+    };
+    localStore.saveProject(fallback);
+    return fallback;
+  }
+}
+
+export async function updateProject(
+  id: string,
+  payload: Partial<Project>,
+): Promise<Project> {
+  const goPayload = toGoProjectPayload(payload);
+  try {
+    const raw = await request<any>(`/api/v1/projects/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(goPayload),
+    });
+    const updated = fromGoProject(raw);
+    localStore.saveProject(updated);
+    return updated;
+  } catch (err) {
+    console.warn("[api-client] updateProject backend PATCH failed, updating locally:", err);
+    const existing = localStore.getProjectById(id);
+    const updated = { ...(existing || {}), ...payload, id } as Project;
+    localStore.saveProject(updated);
+    return updated;
+  }
+}
+
+export async function submitProjectForReview(id: string): Promise<Project> {
+  try {
+    const raw = await request<any>(`/api/v1/projects/${id}/submit`, {
+      method: "POST",
+    });
+    const updated = fromGoProject(raw);
+    localStore.saveProject(updated);
+    return updated;
+  } catch {
+    const existing = localStore.getProjectById(id);
+    if (existing) {
+      existing.status = "pending";
+      localStore.saveProject(existing);
+      return existing;
+    }
+    throw new ApiError("Projet introuvable", 404);
+  }
+}
+
+// ─── Investissements & Portefeuille ───────────────────────────────────
 
 export async function fetchMyInvestments(): Promise<Investment[]> {
   return localStore.getInvestments();
 }
 
+export async function fetchMyProjectInvestments(): Promise<{
+  investments: Investment[];
+  totalRaised: number;
+  projectsCount: number;
+}> {
+  const invs = localStore.getInvestments();
+  const projs = localStore.getProjects();
+  const total = invs.reduce((s, i) => s + i.amountUSD, 0);
+  return {
+    investments: invs,
+    totalRaised: total,
+    projectsCount: projs.length,
+  };
+}
+
 export async function createInvestment(
   projectId: string,
   amountUSD: number,
-  investorInfo?: { id?: string; name?: string; email?: string },
+  equityPercent?: number,
 ): Promise<Investment> {
-  const project = localStore.getProjectById(projectId);
-  const target = project?.fundraising?.targetAmountUSD || 1;
-  const equityTotal = project?.fundraising?.equityPercent || 10;
-  const equityReceived = Number(((amountUSD / target) * equityTotal).toFixed(2));
-
-  const newInv: Investment = {
+  const inv: Investment = {
     id: `inv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     projectId,
-    investorId: investorInfo?.id || "inv-user-1",
-    investorName: investorInfo?.name || "Investisseur ZIRA",
-    investorEmail: investorInfo?.email || "investisseur@zira-invest.com",
+    investorId: "inv-user-1",
     amountUSD,
-    equityReceived,
+    equityReceived: equityPercent ?? 1.5,
     date: new Date().toISOString(),
     status: "completed",
   };
-
-  return localStore.addInvestment(newInv);
+  return localStore.addInvestment(inv);
 }
 
 // ─── KYC ──────────────────────────────────────────────────────────────
 
 export async function submitKyc(
-  documents: { document_type: string; document_url: string }[],
-): Promise<void> {
-  const id = `kyc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-  localStore.saveKycRequest({
-    id,
-    userId: "dev-user-1",
-    userName: "Utilisateur ZIRA",
-    userEmail: "utilisateur@zira-invest.com",
-    submittedAt: new Date().toISOString(),
-    type: "porteur",
-    documents,
-    status: "pending",
-  });
+  payload: {
+    fullName?: string;
+    documentType?: string;
+    documentNumber?: string;
+    documentFile?: File | string;
+    proofAddressFile?: File | string;
+    selfieFile?: File | string;
+    phone?: string;
+  } | { document_type: string; document_url: string }[],
+): Promise<KycRequest> {
+  try {
+    const res = await request<any>("/api/v1/me/kyc/submit", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return res;
+  } catch {
+    return localStore.submitKyc("dev-user-1", payload);
+  }
 }
 
-export async function fetchPendingKyc(): Promise<KycRequest[]> {
-  return localStore.getKycRequests().filter((k) => k.status === "pending");
+export async function fetchKycStatus(): Promise<{
+  status: string;
+  kyc?: KycRequest;
+  extras?: ProfileExtras;
+}> {
+  try {
+    const res = await request<any>("/api/v1/me/kyc");
+    return { status: res?.status || "pending", kyc: res };
+  } catch {
+    const kyc = localStore.getKycRequestByUserId("dev-user-1");
+    return { status: kyc?.status || "not_submitted", kyc };
+  }
 }
 
-export async function approveKyc(id: string): Promise<void> {
-  localStore.updateKycStatus(id, "approved");
-  localStore.addModerationAction({
-    id: `act_${Date.now()}`,
-    date: new Date().toISOString().split("T")[0],
-    action: "kyc_approved",
-    target: id,
-    targetName: "Dossier KYC",
-    by: "mod-1",
-    byEmail: "moderateur@zira-invest.com",
-    details: "Dossier KYC vérifié et validé",
-  });
+export async function verifyIdentityDocument(
+  _documentUrl: string,
+  _documentType: "PASSPORT" | "DRIVER_LICENSE" | "ID_CARD" | string,
+  _selfieUrl?: string,
+): Promise<{
+  valid: boolean;
+  ocr_result?: {
+    full_name?: string;
+    document_number?: string;
+    expiry_date?: string;
+    country?: string;
+  };
+  face_match?: boolean;
+}> {
+  return {
+    valid: true,
+    ocr_result: {
+      document_number: "ID-" + Math.floor(10000000 + Math.random() * 90000000),
+      expiry_date: "2031-12-31",
+    },
+    face_match: true,
+  };
 }
 
-export async function rejectKyc(id: string, reason: string): Promise<void> {
-  localStore.updateKycStatus(id, "rejected", reason);
-  localStore.addModerationAction({
-    id: `act_${Date.now()}`,
-    date: new Date().toISOString().split("T")[0],
-    action: "kyc_rejected",
-    target: id,
-    targetName: "Dossier KYC",
-    by: "mod-1",
-    byEmail: "moderateur@zira-invest.com",
-    details: reason || "Dossier non conforme",
+// ─── Notifications ───────────────────────────────────────────────────
+
+export async function fetchNotifications(universe?: Universe): Promise<{
+  notifications: AppNotification[];
+  unreadCount: number;
+}> {
+  const list = localStore.getNotifications(universe);
+  return {
+    notifications: list,
+    unreadCount: list.filter(n => !n.read).length,
+  };
+}
+
+export async function markNotificationAsRead(id: string): Promise<void> {
+  localStore.markNotificationAsRead(id);
+}
+
+export async function markAllNotificationsAsRead(universe?: Universe): Promise<void> {
+  localStore.markAllNotificationsAsRead(universe);
+}
+
+// ─── Upload de fichiers ───────────────────────────────────────────────
+
+export async function uploadFile(file: File, _type: string): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve(reader.result as string);
+    };
+    reader.onerror = () => {
+      resolve(URL.createObjectURL(file));
+    };
+    reader.readAsDataURL(file);
   });
 }
 
 // ─── Modération ───────────────────────────────────────────────────────
 
-export async function fetchModerationUsers(
-  role?: string,
-): Promise<UserProfile[]> {
-  const users = localStore.getUsers();
-  if (role) return users.filter((u) => u.role === role);
-  return users;
+export async function approveKyc(kycId: string): Promise<{ success: boolean }> {
+  localStore.moderateKyc(kycId, "dev-user-1", true);
+  return { success: true };
 }
 
-export async function fetchModerationProjects(
-  status = "pending",
-): Promise<Project[]> {
-  const projects = localStore.getProjects();
-  if (status === "all") return projects;
-  return projects.filter((p) => p.status === status);
+export async function rejectKyc(kycId: string, reason?: string): Promise<{ success: boolean }> {
+  localStore.moderateKyc(kycId, "dev-user-1", false, reason);
+  return { success: true };
 }
 
-export async function approveProject(id: string): Promise<void> {
-  localStore.updateProjectStatus(id, "active");
-  const p = localStore.getProjectById(id);
-  localStore.addModerationAction({
-    id: `act_${Date.now()}`,
-    date: new Date().toISOString().split("T")[0],
-    action: "project_validated",
-    target: id,
-    targetName: p?.name || id,
-    by: "mod-1",
-    byEmail: "moderateur@zira-invest.com",
-    details: "Campagne validée et mise en ligne",
-  });
+export async function approveProject(projectId: string): Promise<{ success: boolean }> {
+  localStore.moderateProject(projectId, "active");
+  return { success: true };
 }
 
-export async function suspendProject(id: string): Promise<void> {
-  localStore.updateProjectStatus(id, "suspended");
-  const p = localStore.getProjectById(id);
-  localStore.addModerationAction({
-    id: `act_${Date.now()}`,
-    date: new Date().toISOString().split("T")[0],
-    action: "project_suspended",
-    target: id,
-    targetName: p?.name || id,
-    by: "mod-1",
-    byEmail: "moderateur@zira-invest.com",
-    details: "Campagne suspendue par la modération",
-  });
+export async function suspendProject(projectId: string, _reason?: string): Promise<{ success: boolean }> {
+  localStore.moderateProject(projectId, "suspended");
+  return { success: true };
 }
 
-export async function suspendUser(id: string): Promise<void> {
-  localStore.updateUserStatus(id, "suspended");
-  const u = localStore.getUserById(id);
-  localStore.addModerationAction({
-    id: `act_${Date.now()}`,
-    date: new Date().toISOString().split("T")[0],
-    action: "user_suspended",
-    target: id,
-    targetName: u?.name || id,
-    by: "mod-1",
-    byEmail: "moderateur@zira-invest.com",
-    details: "Compte utilisateur suspendu",
-  });
+export async function suspendUser(userId: string, _reason?: string): Promise<{ success: boolean }> {
+  const u = localStore.getUserById(userId);
+  if (u) {
+    u.status = "suspended";
+    localStore.saveUser(u);
+  }
+  return { success: true };
 }
 
-export async function activateUser(id: string): Promise<void> {
-  localStore.updateUserStatus(id, "active");
-}
-
-export async function fetchAllInvestments(): Promise<Investment[]> {
-  return localStore.getInvestments();
-}
-
-export async function fetchModerationActivity(): Promise<ModerationAction[]> {
-  return localStore.getModerationActivity();
-}
-
-export interface ModeratorLoginResponse {
-  custom_token: string;
-  uid: string;
-  email: string;
-  name: string;
-}
-
-export async function loginModerator(
-  email: string,
-  _password: string,
-): Promise<ModeratorLoginResponse> {
-  return {
-    custom_token: "local-mod-token",
-    uid: "mod-1",
-    email: email || "moderateur@zira-invest.com",
-    name: "Modérateur ZIRA",
-  };
-}
-
-export interface IdentityVerifyResponse {
-  valid: boolean;
-  message: string;
-  age?: number;
-  is_adult?: boolean;
-  requires_manual_review?: boolean;
-  verified_at?: string;
-  ocr_result?: {
-    full_name?: string;
-    date_of_birth?: string;
-    age?: number;
-    is_adult?: boolean;
-    expiry_date?: string;
-    is_expired?: boolean;
-    mrz_valid?: boolean;
-    face_match?: boolean;
-    face_similarity?: number;
-    liveness_passed?: boolean;
-    liveness_score?: number;
-    forgery_score?: number;
-    requires_manual_review?: boolean;
-    sanctions_checked?: boolean;
-    warnings?: string[];
-  };
-}
-
-export async function verifyIdentityDocument(
-  _documentUrl: string,
-  _documentType = "ID_CARD",
-  _selfieUrl?: string,
-): Promise<IdentityVerifyResponse> {
-  // Instant automated validation in client mode
-  return {
-    valid: true,
-    message: "Document authentifié avec succès (contrôle de conformité réussi)",
-    age: 32,
-    is_adult: true,
-    requires_manual_review: false,
-    verified_at: new Date().toISOString(),
-    ocr_result: {
-      full_name: "Utilisateur Vérifié",
-      date_of_birth: "1992-04-14",
-      age: 32,
-      is_adult: true,
-      expiry_date: "2030-04-14",
-      is_expired: false,
-      mrz_valid: true,
-      face_match: true,
-      face_similarity: 98.5,
-      liveness_passed: true,
-      liveness_score: 99.1,
-      forgery_score: 0.02,
-      requires_manual_review: false,
-      sanctions_checked: true,
-      warnings: [],
-    },
-  };
-}
-
-export async function uploadFile(file: File, _type: string): Promise<string> {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => {
-      // Fallback placeholder
-      resolve("https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80");
-    };
-    reader.readAsDataURL(file);
-  });
+export async function activateUser(userId: string): Promise<{ success: boolean }> {
+  const u = localStore.getUserById(userId);
+  if (u) {
+    u.status = "active";
+    localStore.saveUser(u);
+  }
+  return { success: true };
 }

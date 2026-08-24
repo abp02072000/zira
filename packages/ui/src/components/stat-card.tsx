@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 interface StatCardProps {
   label: string;
   value: string;
-  sub: string;
+  sub?: string;
   subClass?: string;
   icon?: ReactNode;
   iconBg?: string;
@@ -23,7 +23,7 @@ export function StatCard({ label, value, sub, subClass, icon, iconBg, className 
         <p className={cn("text-xs sm:text-sm text-muted-foreground truncate", icon ? "" : "mb-1")}>{label}</p>
         <p className="text-xl sm:text-2xl font-bold tracking-tight text-foreground break-words">{value}</p>
       </div>
-      <p className={cn("text-[11px] sm:text-xs mt-1.5 font-medium truncate", subClass ?? "text-primary")}>{sub}</p>
+      {sub && <p className={cn("text-[11px] sm:text-xs mt-1.5 font-medium truncate", subClass ?? "text-primary")}>{sub}</p>}
     </div>
   );
 }

@@ -1,90 +1,72 @@
-export type Universe = "porteur" | "investisseur" | "moderation";
+export type Universe = "porteur" | "investisseur" | "moderation" | "landing";
 
-export type UserRole = "porteur" | "investisseur" | "moderateur";
-export type UserStatus = "active" | "pending_kyc" | "suspended";
-export type UserType = "physique" | "morale";
+export type UserRole = "porteur" | "investisseur" | "moderateur" | "admin";
 
-export interface Education {
-  degree: string;
-  institution: string;
-  year: string;
-}
+export type ProjectSector =
+  | "Tech"
+  | "Fintech"
+  | "Agritech"
+  | "Santé"
+  | "Énergie"
+  | "Éducation"
+  | "Logistique"
+  | "Autre";
 
-export interface Experience {
-  role: string;
-  company: string;
-  period: string;
-}
+export type ProjectStatus = "draft" | "pending" | "active" | "funded" | "suspended";
+
+export type KycStatus = "not_submitted" | "pending" | "approved" | "rejected";
 
 export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  photo?: string;
   role: UserRole;
+  type?: "physique" | "morale";
+  companyName?: string;
   title?: string;
   bio?: string;
-  skills?: string[];
-  education?: Education[];
-  experience?: Experience[];
-  type?: UserType;
-  companyName?: string;
-  description?: string;
-  status: UserStatus;
+  photo?: string;
+  phone?: string;
+  country?: string;
+  status: "active" | "suspended" | "pending";
   joinedAt?: string;
 }
 
 export interface TeamMember {
-  id: string;
   name: string;
   role: string;
+  bio?: string;
   photo?: string;
+  linkedin?: string;
 }
-
-export interface EquityBreakdown {
-  porteur: number;
-  investors: number;
-  available: number;
-}
-
-export interface Fundraising {
-  targetAmountUSD: number;
-  equityPercent: number;
-  minInvestment: number;
-  maxInvestment: number;
-  raisedAmount: number;
-}
-
-export type ProjectSector =
-  | "Tech"
-  | "AgriTech"
-  | "FinTech"
-  | "HealthTech"
-  | "EdTech"
-  | "GreenTech"
-  | "Logistics"
-  | "Real Estate";
-
-export type ProjectStatus = "draft" | "pending" | "active" | "funded" | "suspended";
 
 export interface Project {
   id: string;
   porteurId: string;
   name: string;
-  logo: string;
-  poster: string;
+  logo?: string;
+  poster?: string;
   shortDescription: string;
+  fullDescription?: string;
   sector: ProjectSector;
-  targetMarket: string;
-  videoUrl: string;
+  targetMarket?: string;
+  videoUrl?: string;
   team: TeamMember[];
-  equityBreakdown: EquityBreakdown;
-  fundraising: Fundraising;
+  equityBreakdown?: {
+    porteur: number;
+    investors: number;
+    available: number;
+  };
+  fundraising: {
+    targetAmountUSD: number;
+    equityPercent: number;
+    minInvestment: number;
+    maxInvestment: number;
+    raisedAmount: number;
+  };
   status: ProjectStatus;
   createdAt: string;
 }
-
-export type InvestmentStatus = "completed" | "pending" | "refunded";
 
 export interface Investment {
   id: string;
@@ -93,43 +75,36 @@ export interface Investment {
   amountUSD: number;
   equityReceived: number;
   date: string;
-  status: InvestmentStatus;
-  investorName?: string;
-  investorEmail?: string;
+  status: "completed" | "pending" | "refunded";
 }
 
-export type KycStatus = "pending" | "approved" | "rejected";
-export type KycDocumentType = "PASSPORT" | "ID_CARD" | "RCCM" | "PROOF_OF_ADDRESS" | "STATUTS";
-
 export interface KycDocument {
-  document_type: KycDocumentType | string;
-  document_url: string;
+  type: string;
+  url: string;
+  name?: string;
 }
 
 export interface KycRequest {
   id: string;
   userId: string;
-  userName?: string;
-  userEmail?: string;
+  userName: string;
+  userEmail: string;
   submittedAt: string;
-  type: "porteur" | "investisseur";
-  documents: KycDocument[] | string[];
+  type: "investisseur" | "porteur";
+  documents: KycDocument[] | { document_type: string; document_url: string }[];
   status: KycStatus;
   rejectionReason?: string;
 }
 
 export interface ModerationAction {
   id: string;
-  date: string;
-  action: "kyc_approved" | "kyc_rejected" | "project_validated" | "project_suspended" | "user_suspended";
-  target: string;
-  targetName?: string;
-  by: string;
-  byEmail?: string;
-  details?: string;
+  moderatorId: string;
+  targetType: "project" | "user" | "kyc";
+  targetId: string;
+  action: string;
+  reason?: string;
+  timestamp: string;
 }
-
-export type NotificationType = "info" | "success" | "warning" | "kyc" | "investment" | "project" | "system";
 
 export interface AppNotification {
   id: string;
@@ -137,21 +112,8 @@ export interface AppNotification {
   universe: Universe;
   title: string;
   message: string;
-  createdAt: string;
-  read: boolean;
-  type: NotificationType;
-  link?: string;
+  type: "project" | "investment" | "kyc" | "system";
   actionUrl?: string;
-}
-
-export interface PaginatedMeta {
-  page: number;
-  limit: number;
-  total: number;
-  total_pages: number;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  meta: PaginatedMeta;
+  read: boolean;
+  createdAt: string;
 }

@@ -3,9 +3,9 @@ import { Sector, SECTOR_COLORS } from "@/lib/mock-data";
 import { cn } from "../lib/utils";
 
 interface SectorImageProps {
-  src: string;
+  src?: string | null;
   alt: string;
-  sector: Sector;
+  sector: Sector | string;
   className?: string;
   variant?: "poster" | "logo";
   initial?: string;
@@ -13,9 +13,9 @@ interface SectorImageProps {
 
 export function SectorImage({ src, alt, sector, className, variant = "poster", initial }: SectorImageProps) {
   const [errored, setErrored] = useState(false);
-  const baseUrl = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const baseUrl = (import.meta.env.BASE_URL || "").replace(/\/$/, "");
 
-  const color = SECTOR_COLORS[sector];
+  const color = SECTOR_COLORS[sector as Sector] || "#6366f1";
 
   if (!src || errored) {
     return (
