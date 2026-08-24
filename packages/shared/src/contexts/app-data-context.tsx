@@ -38,6 +38,11 @@ interface AppDataContextValue {
   currentPorteurId: string;
   currentInvestorId: string;
   currentModeratorId: string;
+  myProjects: Project[];
+  myInvestments: Investment[];
+  totalInvested: number;
+  totalRaisedPorteur: number;
+  totalRaisedOverall: number;
   getUser: (id: string) => UserProfile | undefined;
   getProject: (id: string) => Project | undefined;
   getInvestmentsByInvestor: (investorId: string) => Investment[];
@@ -57,9 +62,16 @@ interface AppDataContextValue {
   addProject: (project: Project) => Promise<Project>;
   updateProject: (project: Partial<Project> & { id: string }) => Promise<Project>;
   investInProject: (projectId: string, amountUSD: number, equityPercent: number) => Promise<Investment>;
-  submitKyc: (documents: { document_type: string; document_url: string }[] | string[]) => Promise<KycRequest>;
+  addInvestment: (projectId: string, amountUSD: number, equityPercent: number) => Promise<Investment>;
+  submitKyc: (documents: any) => Promise<KycRequest>;
   moderateKyc: (kycId: string, userId: string, approved: boolean, reason?: string) => Promise<void>;
   moderateProject: (projectId: string, status: Project["status"]) => Promise<void>;
+  approveProject: (projectId: string) => Promise<void>;
+  suspendProject: (projectId: string) => Promise<void>;
+  approveKyc: (kycId: string, userId: string) => Promise<void>;
+  rejectKyc: (kycId: string, userId: string, reason?: string) => Promise<void>;
+  suspendUser: (userId: string) => Promise<void>;
+  activateUser: (userId: string) => Promise<void>;
   refreshData: (universe?: Universe) => Promise<void>;
   resetToDefaultData: () => void;
 }
@@ -82,47 +94,35 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   // Subscribe to local store changes and fetch real projects from Go backend
   useEffect(() => {
-    console.log("[AppDataContext] 🚀 AppDataProvider mounted, registering store subscriber & fetching backend data...");
     const syncState = () => {
-      const u = localStore.getUsers();
-      const p = localStore.getProjects();
-      const i = localStore.getInvestments();
-      const k = localStore.getKycRequests();
-      const m = localStore.getModerationActivity();
-      const n = localStore.getNotifications();
-
-      setUsers([...u]);
-      setProjects([...p]);
-      setInvestments([...i]);
-      setKycRequests([...k]);
-      setModerationActivity([...m]);
-      setNotifications([...n]);
+      setUsers([...localStore.getUsers()]);
+      setProjects([...localStore.getProjects()]);
+      setInvestments([...localStore.getInvestments()]);
+      setKycRequests([...localStore.getKycRequests()]);
+      setModerationActivity([...localStore.getModerationActivity()]);
+      setNotifications([...localStore.getNotifications()]);
       setLoading(false);
     };
 
     syncState();
     const unsubscribe = localStore.subscribe(syncState);
 
-    // Initial fetch from real Go backend
     fetchMyProjects()
       .then((liveProjects) => {
         if (liveProjects && liveProjects.length > 0) {
-          console.log("[AppDataContext] 📡 Live projects fetched from Go Backend:", liveProjects.length);
           syncState();
         }
       })
       .catch((err) => {
-        console.warn("[AppDataContext] Initial fetch from Go backend (using local fallback):", err);
+        console.warn("[AppDataContext] Go backend fetch fallback:", err);
       });
 
     return () => {
-      console.log("[AppDataContext] 🛑 AppDataProvider unmounting, unsubscribing from store...");
       unsubscribe();
     };
   }, []);
 
   const refreshData = useCallback(async () => {
-    console.log("[AppDataContext] 🔄 Manual refreshData() triggered");
     try {
       await fetchMyProjects();
     } catch {
@@ -147,36 +147,21 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       status: projectData.status || "active",
     };
 
-    console.log("[AppDataContext] ➕ addProject called, submitting to Go backend:", newProject);
-
     let saved: Project;
     try {
       saved = await apiCreateProject(newProject);
     } catch (err) {
-      console.warn("[AppDataContext] Go API createProject fallback to localStore:", err);
       saved = localStore.saveProject(newProject);
     }
 
-    // Auto-generate notifications
     localStore.addNotification({
       id: `notif_${Date.now()}_p`,
       universe: "porteur",
       userId: porteurId,
       title: "Projet créé avec succès",
-      message: `Votre projet "${saved.name}" est désormais enregistré et soumis pour revue.`,
+      message: `Votre projet "${saved.name}" est désormais enregistré.`,
       type: "project",
       actionUrl: "/porteur/projets",
-      read: false,
-      createdAt: new Date().toISOString(),
-    });
-
-    localStore.addNotification({
-      id: `notif_${Date.now()}_m`,
-      universe: "moderation",
-      title: "Nouveau projet soumis",
-      message: `Le projet "${saved.name}" a été créé et requiert un audit de conformité.`,
-      type: "project",
-      actionUrl: "/moderateur/projets",
       read: false,
       createdAt: new Date().toISOString(),
     });
@@ -186,16 +171,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [profile?.id]);
 
   const updateProject = useCallback(async (projectData: Partial<Project> & { id: string }): Promise<Project> => {
-    console.log("[AppDataContext] ✏️ updateProject called for Go backend:", projectData);
     let saved: Project;
     try {
       saved = await apiUpdateProject(projectData.id, projectData);
     } catch (err) {
-      console.warn("[AppDataContext] Go API updateProject fallback to localStore:", err);
       const existing = localStore.getProjectById(projectData.id);
-      if (!existing) {
-        throw new Error("Projet introuvable");
-      }
+      if (!existing) throw new Error("Projet introuvable");
       const merged: Project = { ...existing, ...projectData };
       saved = localStore.saveProject(merged);
     }
@@ -203,7 +184,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetToDefaultData = useCallback(() => {
-    console.log("[AppDataContext] 🔄 resetToDefaultData called");
     localStore.resetToDefault();
   }, []);
 
@@ -228,19 +208,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       investorEmail,
     };
 
-    console.log("[AppDataContext] 💳 investInProject called:", {
-      projectId,
-      amountUSD,
-      equityPercent,
-      investorId,
-      investorName,
-      createdInvestment: inv,
-    });
-
     const result = localStore.addInvestment(inv);
     const p = localStore.getProjectById(projectId);
 
-    // Auto-generate notifications
     localStore.addNotification({
       id: `notif_${Date.now()}_inv`,
       universe: "investisseur",
@@ -253,45 +223,18 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     });
 
-    if (p?.porteurId) {
-      localStore.addNotification({
-        id: `notif_${Date.now()}_port`,
-        universe: "porteur",
-        userId: p.porteurId,
-        title: "Nouvel investissement reçu ! 💰",
-        message: `${investorName} a injecté ${formatUSD(amountUSD)} dans votre campagne "${p.name}".`,
-        type: "investment",
-        actionUrl: "/porteur/portefeuille",
-        read: false,
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    localStore.addNotification({
-      id: `notif_${Date.now()}_mod`,
-      universe: "moderation",
-      title: "Flux financier enregistré",
-      message: `Transaction de ${formatUSD(amountUSD)} effectuée par ${investorName} sur le projet "${p?.name || projectId}".`,
-      type: "investment",
-      actionUrl: "/moderateur/flux",
-      read: false,
-      createdAt: new Date().toISOString(),
-    });
-
     setNotifications([...localStore.getNotifications()]);
-    console.log("[AppDataContext] ✅ investInProject completed successfully:", result);
     return result;
   }, [profile, currentInvestorId]);
 
   const submitKyc = useCallback(async (
-    documents: { document_type: string; document_url: string }[] | string[]
+    documents: any
   ): Promise<KycRequest> => {
     const userId = profile?.id || "dev-user-1";
     const userName = profile?.name || "Utilisateur ZIRA";
     const userEmail = profile?.email || "utilisateur@zira-invest.com";
     const type = profile?.role === "investisseur" ? "investisseur" : "porteur";
 
-    console.log("[AppDataContext] 📋 submitKyc called, transmitting to Go backend:", documents);
     let saved: KycRequest;
     try {
       saved = await apiSubmitKyc(documents);
@@ -303,32 +246,20 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         userEmail,
         submittedAt: new Date().toISOString(),
         type,
-        documents,
+        documents: Array.isArray(documents) ? documents : [],
         status: "pending",
       };
       saved = localStore.saveKycRequest(kycReq);
     }
 
-    // Auto-generate notifications
     localStore.addNotification({
       id: `notif_${Date.now()}_kyc_user`,
       universe: type,
       userId,
       title: "Dossier KYC transmis 📄",
-      message: "Vos documents d'identité ont été transmis avec succès et sont en cours d'analyse par l'équipe de conformité.",
+      message: "Vos documents d'identité ont été transmis avec succès.",
       type: "kyc",
       actionUrl: `/${type}/profil`,
-      read: false,
-      createdAt: new Date().toISOString(),
-    });
-
-    localStore.addNotification({
-      id: `notif_${Date.now()}_kyc_mod`,
-      universe: "moderation",
-      title: "Nouveau dossier KYC à auditer",
-      message: `Dossier de conformité soumis par ${userName} (${userEmail}).`,
-      type: "kyc",
-      actionUrl: "/moderateur/kyc",
       read: false,
       createdAt: new Date().toISOString(),
     });
@@ -343,7 +274,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     approved: boolean,
     reason?: string
   ): Promise<void> => {
-    console.log("[AppDataContext] 🛡️ moderateKyc called:", { kycId, userId, approved, reason });
     const status = approved ? "approved" : "rejected";
     localStore.updateKycStatus(kycId, status, reason);
     localStore.addModerationAction({
@@ -354,10 +284,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       targetName: `Dossier KYC (${userId})`,
       by: profile?.id || "mod-1",
       byEmail: profile?.email || "moderateur@zira-invest.com",
-      details: reason ? `Motif: ${reason}` : (approved ? "Validation des pièces justificatives" : "Refus du dossier"),
+      details: reason ? `Motif: ${reason}` : (approved ? "Validation" : "Refus"),
     });
 
-    // Notify the target user
     const targetUser = localStore.getUsers().find((u) => u.id === userId);
     const targetUniverse: Universe = targetUser?.role === "investisseur" ? "investisseur" : "porteur";
 
@@ -367,8 +296,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       userId,
       title: approved ? "Compte certifié KYC ✅" : "Dossier KYC refusé ⚠️",
       message: approved
-        ? "Félicitations ! Vos pièces justificatives ont été validées par l'équipe de modération."
-        : `Votre dossier n'a pas été validé. ${reason ? `Motif : ${reason}` : "Veuillez vérifier et renvoyer vos documents."}`,
+        ? "Félicitations ! Vos pièces justificatives ont été validées."
+        : `Votre dossier n'a pas été validé. ${reason ? `Motif : ${reason}` : "Veuillez vérifier vos documents."}`,
       type: approved ? "kyc" : "warning",
       actionUrl: `/${targetUniverse}/profil`,
       read: false,
@@ -382,7 +311,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     projectId: string,
     status: Project["status"]
   ): Promise<void> => {
-    console.log("[AppDataContext] 🛡️ moderateProject called:", { projectId, status });
     localStore.updateProjectStatus(projectId, status);
     const p = localStore.getProjectById(projectId);
     const actionName = status === "active" ? "project_validated" : "project_suspended";
@@ -402,10 +330,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
         id: `notif_${Date.now()}_mod_proj_res`,
         universe: "porteur",
         userId: p.porteurId,
-        title: status === "active" ? "Campagne validée & en ligne ! 🚀" : status === "suspended" ? "Campagne suspendue ⚠️" : "Statut du projet mis à jour",
-        message: status === "active"
-          ? `Votre projet "${p.name}" a été approuvé par la modération et est désormais accessible aux investisseurs.`
-          : `Le statut de votre projet "${p.name}" a été mis à jour : ${status}.`,
+        title: status === "active" ? "Campagne validée & en ligne ! 🚀" : "Statut mis à jour",
+        message: `Le statut de votre projet "${p.name}" a été mis à jour : ${status}.`,
         type: status === "active" ? "project" : "warning",
         actionUrl: "/porteur/projets",
         read: false,
@@ -417,28 +343,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, [profile]);
 
   const getUser = useCallback((id: string) => users.find((u) => u.id === id), [users]);
-  const getProject = useCallback((id: string) => {
-    const p = projects.find((proj) => proj.id === id);
-    if (!p) {
-      console.warn("[AppDataContext] ⚠️ getProject: No project found with id", id, "in", projects.length, "projects");
-    }
-    return p;
-  }, [projects]);
+  const getProject = useCallback((id: string) => projects.find((proj) => proj.id === id), [projects]);
 
   const getInvestmentsByInvestor = useCallback(
     (investorId: string) => {
       const targetId = investorId || profile?.id || currentInvestorId || "inv-user-1";
-      const userInvs = investments.filter(
-        (i) => i.investorId === targetId || (profile?.id && i.investorId === profile.id)
-      );
-      console.log("[AppDataContext] 🔍 getInvestmentsByInvestor:", {
-        investorId,
-        targetId,
-        profileId: profile?.id,
-        matchedCount: userInvs.length,
-        totalInvestmentsInState: investments.length,
-      });
-      return userInvs;
+      return investments.filter((i) => i.investorId === targetId || (profile?.id && i.investorId === profile.id));
     },
     [investments, profile, currentInvestorId],
   );
@@ -451,24 +361,31 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   const getProjectsByPorteur = useCallback(
     (porteurId: string) => {
       const targetId = porteurId || profile?.id || currentPorteurId || "dev-user-1";
-      const direct = projects.filter(
-        (p) => p.porteurId === targetId || (profile?.id && p.porteurId === profile.id)
-      );
-      console.log("[AppDataContext] 🔍 getProjectsByPorteur:", {
-        porteurId,
-        targetId,
-        profileId: profile?.id,
-        currentPorteurId,
-        matchedDirectCount: direct.length,
-        totalProjectsInState: projects.length,
-      });
+      const direct = projects.filter((p) => p.porteurId === targetId || (profile?.id && p.porteurId === profile.id));
       if (direct.length > 0) return direct;
-      const fallback = projects.filter((p) => p.porteurId === "dev-user-1" || !p.porteurId);
-      console.log("[AppDataContext] 🔍 getProjectsByPorteur: Using fallback (dev-user-1 projects):", fallback.length);
-      return fallback;
+      return projects.filter((p) => p.porteurId === "dev-user-1" || !p.porteurId);
     },
     [projects, profile, currentPorteurId],
   );
+
+  const myProjects = useMemo(() => getProjectsByPorteur(currentPorteurId), [getProjectsByPorteur, currentPorteurId]);
+  const myInvestments = useMemo(() => getInvestmentsByInvestor(currentInvestorId), [getInvestmentsByInvestor, currentInvestorId]);
+  const totalInvested = useMemo(() => myInvestments.reduce((acc, i) => acc + i.amountUSD, 0), [myInvestments]);
+  const totalRaisedPorteur = useMemo(() => myProjects.reduce((acc, p) => acc + (p.fundraising?.raisedAmount || 0), 0), [myProjects]);
+  const totalRaisedOverall = useMemo(() => projects.reduce((acc, p) => acc + (p.fundraising?.raisedAmount || 0), 0), [projects]);
+
+  const approveProject = useCallback((projectId: string) => moderateProject(projectId, "active"), [moderateProject]);
+  const suspendProject = useCallback((projectId: string) => moderateProject(projectId, "suspended"), [moderateProject]);
+  const approveKyc = useCallback((kycId: string, userId: string) => moderateKyc(kycId, userId, true), [moderateKyc]);
+  const rejectKyc = useCallback((kycId: string, userId: string, reason?: string) => moderateKyc(kycId, userId, false, reason), [moderateKyc]);
+
+  const suspendUser = useCallback(async (userId: string) => {
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, status: "suspended" as const } : u));
+  }, []);
+
+  const activateUser = useCallback(async (userId: string) => {
+    setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, status: "active" as const } : u));
+  }, []);
 
   const getNotificationsForUser = useCallback(
     (universe?: Universe, userId?: string) => {
@@ -503,11 +420,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const markAllNotificationsAsRead = useCallback((universe?: Universe, userId?: string) => {
-    const targetUniverse = universe || (profile?.role === "moderateur" ? "moderation" : profile?.role === "investisseur" ? "investisseur" : "porteur");
-    const targetUserId = userId || profile?.id;
-    localStore.markAllNotificationsAsRead(targetUniverse, targetUserId);
+    localStore.markAllNotificationsAsRead(universe);
     setNotifications([...localStore.getNotifications()]);
-  }, [profile]);
+  }, []);
 
   const deleteNotification = useCallback((id: string) => {
     localStore.deleteNotification(id);
@@ -515,11 +430,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearAllNotifications = useCallback((universe?: Universe, userId?: string) => {
-    const targetUniverse = universe || (profile?.role === "moderateur" ? "moderation" : profile?.role === "investisseur" ? "investisseur" : "porteur");
-    const targetUserId = userId || profile?.id;
-    localStore.clearAllNotifications(targetUniverse, targetUserId);
+    localStore.clearAllNotifications(universe, userId);
     setNotifications([...localStore.getNotifications()]);
-  }, [profile]);
+  }, []);
 
   const addNotification = useCallback((notif: Omit<AppNotification, "id" | "createdAt"> & { id?: string; createdAt?: string }): AppNotification => {
     const fullNotification: AppNotification = {
@@ -545,6 +458,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       currentPorteurId,
       currentInvestorId,
       currentModeratorId,
+      myProjects,
+      myInvestments,
+      totalInvested,
+      totalRaisedPorteur,
+      totalRaisedOverall,
       getUser,
       getProject,
       getInvestmentsByInvestor,
@@ -564,9 +482,16 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       addProject,
       updateProject,
       investInProject,
+      addInvestment: investInProject,
       submitKyc,
       moderateKyc,
       moderateProject,
+      approveProject,
+      suspendProject,
+      approveKyc,
+      rejectKyc,
+      suspendUser,
+      activateUser,
       refreshData,
       resetToDefaultData,
     }),
@@ -582,6 +507,11 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       currentPorteurId,
       currentInvestorId,
       currentModeratorId,
+      myProjects,
+      myInvestments,
+      totalInvested,
+      totalRaisedPorteur,
+      totalRaisedOverall,
       getUser,
       getProject,
       getInvestmentsByInvestor,
@@ -599,6 +529,12 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       submitKyc,
       moderateKyc,
       moderateProject,
+      approveProject,
+      suspendProject,
+      approveKyc,
+      rejectKyc,
+      suspendUser,
+      activateUser,
       refreshData,
       resetToDefaultData,
     ],

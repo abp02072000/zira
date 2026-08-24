@@ -7,7 +7,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -37,7 +36,7 @@ export default function InvestisseurLogin() {
     setLoading(true);
     setError("");
     try {
-      await signInWithGoogle("investisseur");
+      await signInWithGoogle();
       navigate("/investisseur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion Google impossible");
@@ -55,7 +54,7 @@ export default function InvestisseurLogin() {
     setLoading(true);
     setError("");
     try {
-      await signInWithEmail("investisseur", email.trim(), password);
+      await signInWithEmail(email.trim());
       navigate("/investisseur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Identifiants incorrects");
@@ -78,7 +77,7 @@ export default function InvestisseurLogin() {
     setError("");
     try {
       const name = fullName.trim() || email.split("@")[0];
-      await signUpWithEmail("investisseur", email.trim(), password, name);
+      await signUpWithEmail(email.trim(), name);
       navigate("/investisseur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Inscription impossible");
@@ -105,7 +104,7 @@ export default function InvestisseurLogin() {
         <Card className="border-border shadow-md">
           <CardHeader className="pb-3">
             <CardTitle className="text-xl">
-              {t.authLoginInvTitle}
+              {t("authLoginInvTitle", "Espace Investisseur")}
             </CardTitle>
             <CardDescription>
               {lang === "fr"
@@ -130,7 +129,7 @@ export default function InvestisseurLogin() {
               <TabsContent value="login">
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label htmlFor="inv-login-email">{t.authLoginEmail}</Label>
+                    <Label htmlFor="inv-login-email">{t("authLoginEmail", "Adresse email")}</Label>
                     <Input
                       id="inv-login-email"
                       type="email"
@@ -143,7 +142,7 @@ export default function InvestisseurLogin() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="inv-login-password">{t.authLoginPassword}</Label>
+                    <Label htmlFor="inv-login-password">{t("authLoginPassword", "Mot de passe")}</Label>
                     <div className="relative">
                       <Input
                         id="inv-login-password"
@@ -175,7 +174,7 @@ export default function InvestisseurLogin() {
                     className="w-full font-semibold"
                     disabled={loading}
                   >
-                    {loading ? "Connexion..." : t.authLoginBtn}
+                    {loading ? "Connexion..." : t("authLoginBtn", "Se connecter")}
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </form>
@@ -208,7 +207,7 @@ export default function InvestisseurLogin() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="inv-reg-email">{t.authLoginEmail}</Label>
+                    <Label htmlFor="inv-reg-email">{t("authLoginEmail", "Adresse email")}</Label>
                     <Input
                       id="inv-reg-email"
                       type="email"
@@ -221,7 +220,7 @@ export default function InvestisseurLogin() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label htmlFor="inv-reg-password">{t.authLoginPassword}</Label>
+                    <Label htmlFor="inv-reg-password">{t("authLoginPassword", "Mot de passe")}</Label>
                     <div className="relative">
                       <Input
                         id="inv-reg-password"
@@ -263,7 +262,7 @@ export default function InvestisseurLogin() {
             <div className="relative my-4">
               <Separator />
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-xs text-muted-foreground">
-                {t.authLoginOr}
+                {t("authLoginOr", "ou")}
               </span>
             </div>
 
@@ -275,7 +274,7 @@ export default function InvestisseurLogin() {
               disabled={loading}
             >
               <GoogleIcon />
-              {t.authLoginWithGoogle}
+              {t("authLoginWithGoogle", "Continuer avec Google")}
             </Button>
           </CardContent>
         </Card>

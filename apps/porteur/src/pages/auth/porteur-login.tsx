@@ -24,7 +24,7 @@ export default function PorteurLogin() {
     setLoading(true);
     setError("");
     try {
-      await signInWithGoogle("porteur");
+      await signInWithGoogle();
       navigate("/porteur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Connexion impossible via Google");
@@ -41,7 +41,7 @@ export default function PorteurLogin() {
     setLoading(true);
     setError("");
     try {
-      await signInWithEmail("porteur", email.trim(), pass);
+      await signInWithEmail(email.trim());
       navigate("/porteur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Identifiants incorrects ou connexion impossible");
@@ -63,7 +63,7 @@ export default function PorteurLogin() {
     setError("");
     try {
       const name = data.name.trim() || data.email.split("@")[0];
-      await signUpWithEmail("porteur", data.email.trim(), data.pass, name);
+      await signUpWithEmail(data.email.trim(), name);
       navigate("/porteur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Inscription impossible");
@@ -78,7 +78,7 @@ export default function PorteurLogin() {
         <AuthHeader />
         <Card className="border-border shadow-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-xl">{t.authLoginPorteurTitle}</CardTitle>
+            <CardTitle className="text-xl">{t("authLoginPorteurTitle", "Espace Porteur")}</CardTitle>
             <CardDescription>
               {lang === "fr" ? "Levez des fonds et gérez vos campagnes en sécurité" : "Raise funds and manage campaigns"}
             </CardDescription>

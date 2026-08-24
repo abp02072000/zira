@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Check, X, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { KycRequest } from "@/lib/mock-data";
+import type { KycRequest } from "@zira/shared";
 import { useAppData } from "@/contexts/app-data-context";
 import { approveKyc, rejectKyc } from "@/lib/api-client";
 import { RedirectIfNotOnboarded } from "@/components/redirect-if-not-onboarded";
@@ -29,7 +29,7 @@ export default function ModerationKYC() {
       await approveKyc(req.id);
       setKycRequests((prev) => prev.filter((r) => r.id !== req.id));
       await refreshData("moderation");
-      toast({ title: t.modKYCApproved, description: t.modKYCApprovedDesc(user?.name ?? "") });
+      toast({ title: t("modKYCApproved", "KYC Approuvé"), description: `Le dossier de ${user?.name ?? ""} est validé.` });
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec", variant: "destructive" });
     }
@@ -41,7 +41,7 @@ export default function ModerationKYC() {
       await rejectKyc(req.id, "Documents non conformes");
       setKycRequests((prev) => prev.filter((r) => r.id !== req.id));
       await refreshData("moderation");
-      toast({ title: t.modKYCRejected, description: t.modKYCRejectedDesc(user?.name ?? ""), variant: "destructive" });
+      toast({ title: t("modKYCRejected", "KYC Rejeté"), description: `Le dossier de ${user?.name ?? ""} a été rejeté.`, variant: "destructive" });
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec", variant: "destructive" });
     }
@@ -68,7 +68,7 @@ export default function ModerationKYC() {
       {displayed.length === 0 ? (
         <div className="py-16 flex flex-col items-center gap-3 text-center">
           <ShieldCheck className="w-12 h-12 text-green-500" />
-          <p className="text-muted-foreground">{t.modKYCNone}</p>
+          <p className="text-muted-foreground">{t("modKYCNone", "Aucun dossier en attente")}</p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">

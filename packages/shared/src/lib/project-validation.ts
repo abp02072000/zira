@@ -3,14 +3,16 @@ import type { ProjectSector } from "../types";
 
 export const PROJECT_SECTORS: [ProjectSector, ...ProjectSector[]] = [
   "Tech",
-  "AgriTech",
-  "FinTech",
-  "HealthTech",
-  "EdTech",
-  "GreenTech",
-  "Logistics",
-  "Real Estate",
+  "Fintech",
+  "Agritech",
+  "Santé",
+  "Énergie",
+  "Éducation",
+  "Logistique",
+  "Autre",
 ];
+
+export const SECTORS = PROJECT_SECTORS;
 
 export const infoFields = {
   name: z
@@ -102,9 +104,6 @@ export const completeProjectSchema = z.object({
 
 export type CompleteProjectData = z.infer<typeof completeProjectSchema>;
 
-/**
- * Utility to extract formatted error map from any Zod validation result
- */
 export function extractZodErrors(result: { success: boolean; error?: z.ZodError }): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!result.success && result.error) {

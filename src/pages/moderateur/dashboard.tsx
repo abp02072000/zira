@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 export function ModerateurDashboard() {
-  const { projects, kycRequests, users, approveProject, suspendProject, approveKyc, rejectKyc } = useAppData();
+  const { projects, kycRequests, users, approveProject, suspendProject } = useAppData();
 
   const pendingProjects = projects.filter((p) => p.status === "pending");
   const pendingKyc = kycRequests.filter((k) => k.status === "pending");
@@ -128,7 +128,7 @@ export function ModerateurDashboard() {
                     )}
                     {p.status !== "suspended" && (
                       <button
-                        onClick={() => suspendProject(p.id, "Audit complémentaire")}
+                        onClick={() => suspendProject(p.id)}
                         className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold"
                       >
                         Suspendre

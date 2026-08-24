@@ -24,7 +24,7 @@ import { ProfileExtrasForm } from "@/components/profile-extras-form";
 import { ProfilePreferencesCard } from "@/components/profile-preferences-card";
 import {
   getProfileExtras,
-  setProfileExtras,
+  saveProfileExtras as setProfileExtras,
   type ProfileExtras,
 } from "@/lib/profile-completion";
 
@@ -65,7 +65,7 @@ export default function InvestisseurProfil() {
     setProfileState({
       name: rawUser.name ?? "",
       title: rawUser.title ?? "",
-      description: rawUser.description ?? "",
+      description: rawUser.bio ?? "",
       photo: rawUser.photo ?? "",
     });
     setExtras(getProfileExtras(rawUser.id));
@@ -73,7 +73,7 @@ export default function InvestisseurProfil() {
     rawUser?.id,
     rawUser?.name,
     rawUser?.title,
-    rawUser?.description,
+    rawUser?.bio,
     rawUser?.photo,
     rawUser?.type,
   ]);
@@ -112,10 +112,10 @@ export default function InvestisseurProfil() {
   const currentUser = rawUser;
   const user = { ...currentUser, ...profileState, type: personType };
 
-  const verifiedIdentityName =
-    extras.idVerified && extras.ocrFullName
-      ? (extractIdentityNameCandidate(extras.ocrFullName) ?? "")
-      : "";
+  const candidate = extras.idVerified && extras.ocrFullName
+    ? extractIdentityNameCandidate(extras.ocrFullName)
+    : null;
+  const verifiedIdentityName = candidate ? `${candidate.firstName} ${candidate.lastName}`.trim() : "";
   const displayedName = verifiedIdentityName || user.name;
 
   async function persistAll(
@@ -128,7 +128,7 @@ export default function InvestisseurProfil() {
       await updateUserProfile(currentUser.id, {
         name: next.name,
         title: next.title,
-        description: next.description,
+        bio: next.description,
         photo: next.photo,
         type,
       });
@@ -136,7 +136,7 @@ export default function InvestisseurProfil() {
       setProfileState(next);
       setExtras(nextExtras);
       await refreshProfile();
-      toast({ title: t.invProfileTitle, description: t.save });
+      toast({ title: t("invProfileTitle", "Profil mis à jour"), description: t("save", "Enregistré") });
     } catch (e) {
       toast({
         title: "Erreur",
@@ -154,7 +154,6 @@ export default function InvestisseurProfil() {
   }
 
   async function handleIdentityNameDetected(identityName: string) {
-    // Pour un profil personne morale, le nom de société reste prioritaire.
     if (personType === "morale") return;
 
     const currentName = (profileState.name || currentUser.name || "").trim();
@@ -165,7 +164,6 @@ export default function InvestisseurProfil() {
     if (normalizeDisplayName(nextName) === normalizeDisplayName(currentName))
       return;
 
-    // Mise à jour optimiste de l'affichage local, puis persistance backend.
     setProfileState((prev) => ({ ...prev, name: nextName }));
     setForm((prev) => ({ ...prev, name: nextName }));
 
@@ -173,7 +171,7 @@ export default function InvestisseurProfil() {
       const updated = await updateUserProfile(currentUser.id, {
         name: nextName,
         title: profileState.title,
-        description: profileState.description,
+        bio: profileState.description,
         photo: profileState.photo,
         type: personType,
       });
@@ -202,7 +200,8 @@ export default function InvestisseurProfil() {
   useEffect(() => {
     if (personType === "morale" || !extras.idVerified) return;
 
-    const detectedName = extractIdentityNameCandidate(extras.ocrFullName);
+    const candidate = extractIdentityNameCandidate(extras.ocrFullName);
+    const detectedName = candidate ? `${candidate.firstName} ${candidate.lastName}`.trim() : "";
     if (!detectedName) return;
 
     const normalizedDetected = normalizeDisplayName(detectedName);
@@ -390,25 +389,25 @@ export default function InvestisseurProfil() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t.invProfileEditTitle}</DialogTitle>
+            <DialogTitle>{t("invProfileEditTitle", "Modifier le profil")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
-              <Label>{t.invProfileFullName}</Label>
+              <Label>{t("invProfileFullName", "Nom complet")}</Label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>{t.invProfileTitleField}</Label>
+              <Label>{t("invProfileTitleField", "Titre / Fonction")}</Label>
               <Input
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
               />
             </div>
             <div className="space-y-1.5">
-              <Label>{t.invProfileAbout}</Label>
+              <Label>{t("invProfileAbout", "À propos")}</Label>
               <Textarea
                 rows={4}
                 value={form.description}
@@ -420,10 +419,10 @@ export default function InvestisseurProfil() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>
-              {t.cancel}
+              {t("cancel", "Annuler")}
             </Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "..." : t.save}
+              {saving ? "..." : t("save", "Enregistrer")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -33,13 +33,13 @@ export function ModerateurKycQueuePage() {
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => approveKyc(k.id)}
+                  onClick={() => approveKyc(k.id, k.userId)}
                   className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm"
                 >
                   Valider le KYC
                 </button>
                 <button
-                  onClick={() => rejectKyc(k.id, "Document illisible")}
+                  onClick={() => rejectKyc(k.id, k.userId, "Document illisible")}
                   className="px-3.5 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold"
                 >
                   Refuser

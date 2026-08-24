@@ -12,7 +12,6 @@ export interface AuthGuardProps {
 }
 
 export function AuthGuard({
-  universe,
   loginPath,
   children,
   fallbackText = "Vérification de l'authentification...",
@@ -30,7 +29,7 @@ export function AuthGuard({
     );
   }
 
-  if (!isAuthenticated(universe)) {
+  if (!isAuthenticated) {
     return <Redirect to={`${loginPath}?next=${encodeURIComponent(location)}`} />;
   }
 

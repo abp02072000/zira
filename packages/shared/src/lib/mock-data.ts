@@ -1,4 +1,17 @@
-import { Project, UserProfile, Investment, KycRequest, AppNotification } from "../types";
+import { Project, UserProfile, Investment, KycRequest, AppNotification, ProjectSector } from "../types";
+
+export type Sector = ProjectSector;
+
+export const SECTOR_COLORS: Record<ProjectSector, { bg: string; text: string; border: string }> = {
+  Tech: { bg: "bg-blue-500/10", text: "text-blue-500", border: "border-blue-500/20" },
+  Fintech: { bg: "bg-emerald-500/10", text: "text-emerald-500", border: "border-emerald-500/20" },
+  Agritech: { bg: "bg-amber-500/10", text: "text-amber-500", border: "border-amber-500/20" },
+  Santé: { bg: "bg-rose-500/10", text: "text-rose-500", border: "border-rose-500/20" },
+  Énergie: { bg: "bg-purple-500/10", text: "text-purple-500", border: "border-purple-500/20" },
+  Éducation: { bg: "bg-indigo-500/10", text: "text-indigo-500", border: "border-indigo-500/20" },
+  Logistique: { bg: "bg-cyan-500/10", text: "text-cyan-500", border: "border-cyan-500/20" },
+  Autre: { bg: "bg-gray-500/10", text: "text-gray-500", border: "border-gray-500/20" },
+};
 
 export function formatUSD(amount: number): string {
   return new Intl.NumberFormat("fr-FR", {

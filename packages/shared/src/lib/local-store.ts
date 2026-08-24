@@ -7,6 +7,7 @@ import {
   AppNotification,
   Universe,
   ProjectStatus,
+  KycStatus,
 } from "../types";
 import {
   INITIAL_USERS,
@@ -96,6 +97,18 @@ class LocalStore {
     this.listeners.forEach((fn) => fn());
   }
 
+  // Reset
+  public resetToDefault(): void {
+    this.users = [...INITIAL_USERS];
+    this.projects = [...INITIAL_PROJECTS];
+    this.investments = [...INITIAL_INVESTMENTS];
+    this.kycRequests = [...INITIAL_KYC];
+    this.notifications = [...INITIAL_NOTIFICATIONS];
+    this.moderationActivity = [];
+    this.profileExtras = {};
+    this.persist();
+  }
+
   // Users
   getUsers(): UserProfile[] { return [...this.users]; }
   getUserById(id: string): UserProfile | undefined { return this.users.find((u) => u.id === id); }
@@ -123,6 +136,9 @@ class LocalStore {
       p.status = status;
       this.saveProject(p);
     }
+  }
+  updateProjectStatus(id: string, status: ProjectStatus): void {
+    this.moderateProject(id, status);
   }
 
   // Investments
@@ -163,26 +179,34 @@ class LocalStore {
     };
     return this.saveKycRequest(req);
   }
-  moderateKyc(kycId: string, moderatorId: string, approve: boolean, reason?: string): void {
+  updateKycStatus(kycId: string, status: KycStatus, reason?: string): void {
     const k = this.kycRequests.find((x) => x.id === kycId);
     if (k) {
-      k.status = approve ? "approved" : "rejected";
+      k.status = status;
       if (reason) k.rejectionReason = reason;
-      this.moderationActivity.unshift({
-        id: `mod_act_${Date.now()}`,
-        moderatorId,
-        targetType: "kyc",
-        targetId: kycId,
-        action: approve ? "APPROVE_KYC" : "REJECT_KYC",
-        reason,
-        timestamp: new Date().toISOString(),
-      });
       this.persist();
     }
+  }
+  moderateKyc(kycId: string, moderatorId: string, approve: boolean, reason?: string): void {
+    const status: KycStatus = approve ? "approved" : "rejected";
+    this.updateKycStatus(kycId, status, reason);
+    this.addModerationAction({
+      id: `mod_act_${Date.now()}`,
+      moderatorId,
+      targetType: "kyc",
+      targetId: kycId,
+      action: approve ? "APPROVE_KYC" : "REJECT_KYC",
+      reason,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   // Moderation
   getModerationActivity(): ModerationAction[] { return [...this.moderationActivity]; }
+  addModerationAction(action: ModerationAction): void {
+    this.moderationActivity.unshift(action);
+    this.persist();
+  }
 
   // Notifications
   getNotifications(universe?: Universe): AppNotification[] {
@@ -203,6 +227,18 @@ class LocalStore {
   markAllNotificationsAsRead(universe?: Universe): void {
     this.notifications.forEach((n) => {
       if (!universe || n.universe === universe) n.read = true;
+    });
+    this.persist();
+  }
+  deleteNotification(id: string): void {
+    this.notifications = this.notifications.filter((n) => n.id !== id);
+    this.persist();
+  }
+  clearAllNotifications(universe?: Universe, userId?: string): void {
+    this.notifications = this.notifications.filter((n) => {
+      if (universe && n.universe !== universe) return true;
+      if (userId && n.userId && n.userId !== userId) return true;
+      return false;
     });
     this.persist();
   }

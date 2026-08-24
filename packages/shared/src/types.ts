@@ -30,6 +30,9 @@ export interface UserProfile {
   country?: string;
   status: "active" | "suspended" | "pending";
   joinedAt?: string;
+  skills?: string[];
+  experience?: any;
+  education?: any;
 }
 
 export interface TeamMember {
@@ -76,12 +79,16 @@ export interface Investment {
   equityReceived: number;
   date: string;
   status: "completed" | "pending" | "refunded";
+  investorName?: string;
+  investorEmail?: string;
 }
 
 export interface KycDocument {
   type: string;
   url: string;
   name?: string;
+  document_type?: string;
+  document_url?: string;
 }
 
 export interface KycRequest {
@@ -98,13 +105,21 @@ export interface KycRequest {
 
 export interface ModerationAction {
   id: string;
-  moderatorId: string;
-  targetType: "project" | "user" | "kyc";
-  targetId: string;
+  moderatorId?: string;
+  targetType?: "project" | "user" | "kyc";
+  targetId?: string;
   action: string;
   reason?: string;
-  timestamp: string;
+  timestamp?: string;
+  date?: string;
+  target?: string;
+  targetName?: string;
+  by?: string;
+  byEmail?: string;
+  details?: string;
 }
+
+export type NotificationType = "project" | "investment" | "kyc" | "system" | "warning";
 
 export interface AppNotification {
   id: string;
@@ -112,7 +127,7 @@ export interface AppNotification {
   universe: Universe;
   title: string;
   message: string;
-  type: "project" | "investment" | "kyc" | "system";
+  type: NotificationType;
   actionUrl?: string;
   read: boolean;
   createdAt: string;

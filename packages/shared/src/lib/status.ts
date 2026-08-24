@@ -1,4 +1,4 @@
-import type { ProjectStatus } from "./mock-data";
+import type { ProjectStatus } from "../types";
 
 export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
   active: "Actif",
