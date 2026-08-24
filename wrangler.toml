@@ -2,8 +2,7 @@ name = "zira-invest-web"
 compatibility_date = "2024-09-23"
 pages_build_output_dir = "dist"
 
-[site]
-bucket = "./dist"
+assets = { directory = "./dist" }
 
 [[r2_buckets]]
 binding = "ZIRA_ASSETS_BUCKET"
