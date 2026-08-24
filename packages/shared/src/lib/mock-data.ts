@@ -13,21 +13,27 @@ export const SECTOR_COLORS: Record<ProjectSector, { bg: string; text: string; bo
   Autre: { bg: "bg-gray-500/10", text: "text-gray-500", border: "border-gray-500/20" },
 };
 
+// Performance optimization: Cache Intl formatter instances at module level
+// to prevent expensive re-creation of Intl objects on every format call across 75+ call sites.
+const usdFormatter = new Intl.NumberFormat("fr-FR", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
 export function formatUSD(amount: number): string {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return usdFormatter.format(amount);
 }
 
 export function formatDate(dateString: string): string {
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }).format(new Date(dateString));
+    return dateFormatter.format(new Date(dateString));
   } catch {
     return dateString;
   }
