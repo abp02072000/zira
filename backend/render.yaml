@@ -1,0 +1,44 @@
+services:
+  - type: web
+    name: zira-invest-backend
+    env: go
+    region: frankfurt
+    buildCommand: cd backend && go build -o bin/server ./cmd/server
+    startCommand: cd backend && ./bin/server
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: APP_ENV
+        value: production
+      - key: DB_DRIVER
+        value: postgres
+      - key: DB_HOST
+        sync: false # Set to Neon PostgreSQL host (e.g., ep-cool-name-123456.eu-central-1.aws.neon.tech)
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_USER
+        sync: false # Set to Neon PostgreSQL user
+      - key: DB_PASSWORD
+        sync: false # Set to Neon PostgreSQL password
+      - key: DB_NAME
+        value: zira_invest_db
+      - key: DB_SSLMODE
+        value: require
+      - key: CLOUDFLARE_R2_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_R2_ACCESS_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: CLOUDFLARE_R2_BUCKET_NAME
+        value: zira-invest-assets-rdc
+      - key: CLOUDFLARE_R2_PUBLIC_DOMAIN
+        value: https://assets.zira-invest.cd
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: notifications@zira-invest.cd
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://zira-invest.cd,https://app.zira-invest.cd

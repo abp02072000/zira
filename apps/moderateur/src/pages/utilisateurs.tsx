@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Pause, RotateCcw, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { UserProfile } from "@/lib/mock-data";
+import type { UserProfile } from "@zira/shared";
 import { useAppData } from "@/contexts/app-data-context";
 import { suspendUser, activateUser } from "@/lib/api-client";
 import { RedirectIfNotOnboarded } from "@/components/redirect-if-not-onboarded";
@@ -12,7 +12,7 @@ import { isOnboarded } from "@/components/onboarding-carousel";
 import { useLang } from "@/lib/i18n";
 import { FilterPills } from "@/components/filter-pills";
 import { cn } from "@/lib/utils";
-import { USER_STATUS_LABEL, USER_STATUS_STYLE } from "@/lib/status";
+import { USER_STATUS_LABEL, USER_STATUS_STYLE } from "@zira/shared";
 
 type FilterValue = "all" | "active" | "suspended" | "pending_kyc" | "porteur" | "investisseur";
 
@@ -53,7 +53,7 @@ export default function ModerationUtilisateurs() {
       await suspendUser(u.id);
       setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, status: "suspended" as const } : x));
       await refreshData("moderation");
-      toast({ title: t.modUsersSuspended, description: u.name, variant: "destructive" });
+      toast({ title: t("modUsersSuspended", "Utilisateur suspendu"), description: u.name, variant: "destructive" });
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec", variant: "destructive" });
     }
@@ -64,7 +64,7 @@ export default function ModerationUtilisateurs() {
       await activateUser(u.id);
       setUsers((prev) => prev.map((x) => x.id === u.id ? { ...x, status: "active" as const } : x));
       await refreshData("moderation");
-      toast({ title: t.modUsersActivated, description: u.name });
+      toast({ title: t("modUsersActivated", "Utilisateur réactivé"), description: u.name });
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec", variant: "destructive" });
     }
@@ -90,7 +90,7 @@ export default function ModerationUtilisateurs() {
       <FilterPills options={TABS} value={filter} onChange={(v) => setFilter(v as FilterValue)} />
 
       {filtered.length === 0 ? (
-        <div className="py-16 text-center text-muted-foreground text-sm">{t.modUsersNone}</div>
+        <div className="py-16 text-center text-muted-foreground text-sm">{t("modUsersNone", "Aucun utilisateur trouvé")}</div>
       ) : (
         <div className="flex flex-col gap-2">
           {filtered.map((u) => (

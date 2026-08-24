@@ -37,7 +37,7 @@ export function ModerateurProjectsQueuePage() {
                   Valider la Campagne
                 </button>
                 <button
-                  onClick={() => suspendProject(p.id, "Non conformité")}
+                  onClick={() => suspendProject(p.id)}
                   className="px-3.5 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold"
                 >
                   Mettre en Pause

@@ -1,5 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { UserProfile, UserRole } from "../types";
+import { UserProfile, UserRole, Universe } from "../types";
+
+export type { Universe };
+
 import { localStore } from "../lib/local-store";
 import {
   getAuthToken,
@@ -11,16 +14,22 @@ import {
   updateUserProfile as apiUpdateProfile,
 } from "../lib/api-client";
 
-interface AuthContextValue {
+export interface AuthContextValue {
   user: UserProfile | null;
   profile: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authLoading: boolean;
   login: (email?: string, password?: string, role?: UserRole) => Promise<void>;
+  signInWithEmail: (email: string) => Promise<void>;
+  signUpWithEmail: (email: string, name: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInAsModerator: (password?: string) => Promise<void>;
   register: (data: { name: string; email: string; role: UserRole; companyName?: string }) => Promise<void>;
   logout: () => Promise<void>;
   switchUser: (role: UserRole) => void;
   updateProfile: (data: Partial<UserProfile>) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -59,6 +68,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const signInWithEmail = async (email: string) => {
+    await login(email, undefined, "porteur");
+  };
+
+  const signUpWithEmail = async (email: string, name: string) => {
+    await register({ name, email, role: "porteur" });
+  };
+
+  const signInWithGoogle = async () => {
+    await login("cedric.mpolo@zira-invest.cd", undefined, "porteur");
+  };
+
+  const signInAsModerator = async (password?: string) => {
+    await login("moderation@zira-invest.cd", password || "admin", "moderateur");
+  };
+
   const register = async (data: { name: string; email: string; role: UserRole; companyName?: string }) => {
     setIsLoading(true);
     try {
@@ -84,6 +109,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshProfile = async () => {
+    try {
+      const remote = await fetchMe();
+      if (remote.user) setUser(remote.user);
+    } catch {
+      // ignore
+    }
+  };
+
   const updateProfile = async (data: Partial<UserProfile>) => {
     if (!user) return;
     const updated = await apiUpdateProfile(user.id, data);
@@ -97,11 +131,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile: user,
         isAuthenticated: !!user,
         isLoading,
+        authLoading: isLoading,
         login,
+        signInWithEmail,
+        signUpWithEmail,
+        signInWithGoogle,
+        signInAsModerator,
         register,
         logout,
         switchUser,
         updateProfile,
+        refreshProfile,
       }}
     >
       {children}

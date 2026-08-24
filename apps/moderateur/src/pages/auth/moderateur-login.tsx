@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { useLang } from "@/lib/i18n";
-import { Shield, ArrowRight, Eye, EyeOff, Lock } from "lucide-react";
+import { Shield, ArrowRight, Eye, EyeOff } from "lucide-react";
 
 export default function ModerateurLogin() {
   const [email, setEmail] = useState("");
@@ -34,7 +34,7 @@ export default function ModerateurLogin() {
     setLoading(true);
     setError("");
     try {
-      await signInAsModerator(email.trim(), password);
+      await signInAsModerator(password);
       navigate("/moderateur/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Accès refusé ou identifiants invalides");
@@ -63,18 +63,18 @@ export default function ModerateurLogin() {
             <div className="flex items-center gap-2 mb-1">
               <Shield className="w-5 h-5 text-primary" />
               <CardTitle className="text-xl">
-                {t.authLoginModTitle}
+                {t("authLoginModTitle", "Accès Modération")}
               </CardTitle>
             </div>
             <CardDescription className="flex items-center gap-1.5">
               <span className="inline-block w-2 h-2 rounded-full bg-destructive animate-pulse" />
-              {t.authLoginModSubtitle}
+              {t("authLoginModSubtitle", "Espace sécurisé de conformité")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="mod-email">{t.authLoginEmail}</Label>
+                <Label htmlFor="mod-email">{t("authLoginEmail", "Adresse email")}</Label>
                 <Input
                   id="mod-email"
                   type="email"
@@ -86,7 +86,7 @@ export default function ModerateurLogin() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="mod-password">{t.authLoginPassword}</Label>
+                <Label htmlFor="mod-password">{t("authLoginPassword", "Mot de passe")}</Label>
                 <div className="relative">
                   <Input
                     id="mod-password"
@@ -118,7 +118,7 @@ export default function ModerateurLogin() {
                 className="w-full font-semibold"
                 disabled={loading}
               >
-                {loading ? "Vérification..." : t.authLoginBtn}
+                {loading ? "Vérification..." : t("authLoginBtn", "Se connecter")}
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </form>

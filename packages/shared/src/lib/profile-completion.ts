@@ -1,3 +1,6 @@
+export type ProfileUniverse = "porteur" | "investisseur" | "moderation";
+export type IdDocumentType = "PASSPORT" | "ID_CARD" | "DRIVER_LICENSE" | "national_id" | "passport" | "driver_license";
+
 export interface ProfileExtras {
   phone?: string;
   country?: string;
@@ -14,6 +17,95 @@ export interface ProfileExtras {
   investmentCapacity?: string;
   bankName?: string;
   bankIban?: string;
+  idVerified?: boolean;
+  idVerifiedAt?: string;
+  phoneCountryCode?: string;
+  emailVerified?: boolean;
+  emailVerifiedAt?: string;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string;
+  idDocumentUrl?: string;
+  idDocumentBackUrl?: string;
+  selfieUrl?: string;
+  idDocumentType?: IdDocumentType;
+  idDocumentNumber?: string;
+  idDocumentCountry?: string;
+  idExpiryDate?: string;
+  paymentReceive?: string;
+  paymentSend?: string;
+  companyName?: string;
+  companyRegistrationNumber?: string;
+  fullName?: string;
+  dateOfBirth?: string;
+  nationality?: string;
+  residentialAddress?: string;
+  ocrFullName?: string;
+  ocrAge?: number;
+  faceMatch?: boolean;
+  livenessPassed?: boolean;
+}
+
+export function getProfileExtras(userId?: string): ProfileExtras {
+  if (!userId) return {};
+  try {
+    const data = localStorage.getItem(`zira-profile-extras-${userId}`);
+    return data ? JSON.parse(data) : {};
+  } catch {
+    return {};
+  }
+}
+
+export function saveProfileExtras(userId: string, extras: Partial<ProfileExtras>): ProfileExtras {
+  const current = getProfileExtras(userId);
+  const updated = { ...current, ...extras };
+  try {
+    localStorage.setItem(`zira-profile-extras-${userId}`, JSON.stringify(updated));
+  } catch {
+    // ignore
+  }
+  return updated;
+}
+
+export function dismissProfileBanner(userId: string): void {
+  try {
+    localStorage.setItem(`zira-dismiss-profile-banner-${userId}`, "true");
+  } catch {}
+}
+
+export function isProfileBannerDismissed(userId: string): boolean {
+  try {
+    return localStorage.getItem(`zira-dismiss-profile-banner-${userId}`) === "true";
+  } catch {
+    return false;
+  }
+}
+
+export function getProfileBannerFields(_universe: ProfileUniverse): string[] {
+  return ["phone", "country", "city", "address", "rccmNumber"];
+}
+
+export function getMissingFields(profile: any, universe: ProfileUniverse): string[] {
+  const fields = getProfileBannerFields(universe);
+  const missing: string[] = [];
+  if (!profile) return fields;
+  const extras = getProfileExtras(profile.id);
+  fields.forEach((f) => {
+    if (!profile[f] && !(extras as any)[f]) {
+      missing.push(f);
+    }
+  });
+  return missing;
+}
+
+export function getFieldLabel(field: string, lang: string = "fr"): string {
+  const labels: Record<string, { fr: string; en: string }> = {
+    phone: { fr: "Numéro de téléphone", en: "Phone number" },
+    country: { fr: "Pays", en: "Country" },
+    city: { fr: "Ville", en: "City" },
+    address: { fr: "Adresse", en: "Address" },
+    rccmNumber: { fr: "Numéro RCCM / Immatriculation", en: "RCCM Number" },
+  };
+  return labels[field]?.[lang === "fr" ? "fr" : "en"] || field;
 }
 
 export function calculateProfileScore(user?: any, extras?: ProfileExtras): number {

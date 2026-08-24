@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Check, PauseCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import type { ProjectStatus, Project } from "@/lib/mock-data";
+import type { ProjectStatus, Project } from "@zira/shared";
 import { useAppData } from "@/contexts/app-data-context";
 import { approveProject, suspendProject } from "@/lib/api-client";
 import { RedirectIfNotOnboarded } from "@/components/redirect-if-not-onboarded";
@@ -12,7 +12,7 @@ import { useLang } from "@/lib/i18n";
 import { FilterPills } from "@/components/filter-pills";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
-import { PROJECT_STATUS_LABEL, PROJECT_STATUS_STYLE } from "@/lib/status";
+import { PROJECT_STATUS_LABEL, PROJECT_STATUS_STYLE } from "@zira/shared";
 
 type FilterValue = ProjectStatus | "all";
 
@@ -40,7 +40,7 @@ export default function ModerationProjets() {
       await approveProject(p.id);
       setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "active" as ProjectStatus } : x)));
       await refreshData("moderation");
-      toast({ title: t.modProjValidated, description: t.modProjValidatedDesc(p.name) });
+      toast({ title: t("modProjValidated", "Projet validé"), description: `Le projet "${p.name}" est désormais actif.` });
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec", variant: "destructive" });
     }
@@ -51,7 +51,7 @@ export default function ModerationProjets() {
       await suspendProject(p.id);
       setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, status: "suspended" as ProjectStatus } : x)));
       await refreshData("moderation");
-      toast({ title: t.modProjSuspended, description: t.modProjSuspendedDesc(p.name), variant: "destructive" });
+      toast({ title: t("modProjSuspended", "Projet suspendu"), description: `Le projet "${p.name}" a été suspendu.`, variant: "destructive" });
     } catch (e) {
       toast({ title: "Erreur", description: e instanceof Error ? e.message : "Échec", variant: "destructive" });
     }
@@ -67,7 +67,7 @@ export default function ModerationProjets() {
       <FilterPills options={TABS} value={tab} onChange={(v) => setTab(v as FilterValue)} />
 
       {filtered.length === 0 ? (
-        <div className="py-16 text-center text-muted-foreground text-sm">{t.modProjNone}</div>
+        <div className="py-16 text-center text-muted-foreground text-sm">{t("modProjNone", "Aucun projet trouvé")}</div>
       ) : (
         <div className="flex flex-col gap-4">
           {filtered.map((project) => {

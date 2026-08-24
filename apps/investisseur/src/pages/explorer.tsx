@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
-import { SECTORS, type Sector } from "@/lib/mock-data";
+import { SECTORS, type Sector } from "@zira/shared";
 import { useAppData } from "@/contexts/app-data-context";
 import { RedirectIfNotOnboarded } from "@/components/redirect-if-not-onboarded";
 import { isOnboarded } from "@/components/onboarding-carousel";
@@ -38,7 +38,7 @@ export default function InvestisseurExplorer() {
 
   return (
     <div className="py-6 px-4 md:px-6 space-y-5">
-      <h1 className="text-2xl font-bold">{t.explorerTitle}</h1>
+      <h1 className="text-2xl font-bold">{t("explorerTitle", "Explorer les opportunités")}</h1>
 
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
@@ -53,7 +53,7 @@ export default function InvestisseurExplorer() {
       <FilterPills options={sectorOptions} value={sector} onChange={(v) => setSector(v as FilterValue)} />
 
       {filtered.length === 0 ? (
-        <div className="py-16 text-center text-muted-foreground text-sm">{t.explorerNoResults}</div>
+        <div className="py-16 text-center text-muted-foreground text-sm">{t("explorerNoResults", "Aucun projet trouvé")}</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {filtered.map((project) => {

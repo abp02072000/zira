@@ -83,7 +83,7 @@ export function UserProfileMenu({
       : "/porteur/profil";
 
   function handleLogout() {
-    logout(universe);
+    logout();
     navigate(`/${universe}/login`);
   }
 

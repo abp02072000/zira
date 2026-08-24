@@ -464,7 +464,7 @@ export function ProfileExtrasForm({
       onChange(updated);
 
       if (candidateName && onIdentityNameDetected) {
-        void onIdentityNameDetected(candidateName);
+        void onIdentityNameDetected(`${candidateName.firstName} ${candidateName.lastName}`.trim());
       }
 
       toast({

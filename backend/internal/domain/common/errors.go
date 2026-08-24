@@ -2,6 +2,25 @@ package common
 
 import "errors"
 
+// DomainError représente une erreur métier typée avec code et statut HTTP
+type DomainError struct {
+	Code       string
+	Message    string
+	HTTPStatus int
+}
+
+func (e *DomainError) Error() string {
+	return e.Message
+}
+
+func NewDomainError(code, message string, status int) *DomainError {
+	return &DomainError{
+		Code:       code,
+		Message:    message,
+		HTTPStatus: status,
+	}
+}
+
 var (
 	// User & Identity errors
 	ErrUserNotFound          = errors.New("utilisateur introuvable")
@@ -10,6 +29,8 @@ var (
 	ErrUsernameReserved      = errors.New("ce nom d'utilisateur est réservé par la plateforme")
 	ErrUsernameTaken         = errors.New("ce nom d'utilisateur est déjà utilisé")
 	ErrClerkIdentityMissing  = errors.New("revendication d'identité Clerk manquante ou invalide")
+	ErrInvalidToken          = errors.New("jeton d'authentification invalide ou expiré")
+	ErrInvalidRole           = errors.New("rôle utilisateur non valide")
 
 	// Project errors
 	ErrProjectNotFound       = errors.New("projet introuvable")
@@ -41,4 +62,5 @@ var (
 	ErrUnauthorized          = errors.New("non authentifié")
 	ErrForbidden             = errors.New("accès interdit : privilèges insuffisants")
 	ErrInvalidInput          = errors.New("données fournies invalides")
+	ErrInvalidRequestBody    = errors.New("corps de requête invalide ou mal formaté")
 )

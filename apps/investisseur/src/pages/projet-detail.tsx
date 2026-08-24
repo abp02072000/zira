@@ -16,12 +16,6 @@ import { SectorImage } from "@/components/sector-image";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { useLang } from "@/lib/i18n";
 import { useAuth } from "@/contexts/auth-context";
-import { createInvestment, ApiError } from "@/lib/api-client";
-import {
-  getFieldLabel,
-  getMissingFields,
-  isProfileCompleteForAction,
-} from "@/lib/profile-completion";
 
 interface Props { id: string; }
 
@@ -40,7 +34,7 @@ export default function InvestisseurProjetDetail({ id }: Props) {
       <div className="py-10 px-4 text-center">
         <p>{lang === "fr" ? "Projet introuvable." : "Project not found."}</p>
         <Link href="/investisseur/explorer">
-          <Button variant="outline" className="mt-4">{t.back}</Button>
+          <Button variant="outline" className="mt-4">{t("back", "Retour")}</Button>
         </Link>
       </div>
     );
@@ -54,9 +48,9 @@ export default function InvestisseurProjetDetail({ id }: Props) {
     : 0;
 
   const equityData = [
-    { name: t.porteurEquityBreakdown, value: project.equityBreakdown.porteur, color: "hsl(var(--primary))" },
-    { name: t.porteurEquityInvestors, value: project.equityBreakdown.investors, color: "hsl(var(--accent))" },
-    { name: t.porteurEquityAvailable, value: project.equityBreakdown.available, color: "hsl(var(--muted-foreground))" },
+    { name: t("porteurEquityBreakdown", "Fondateurs"), value: project.equityBreakdown?.porteur || 85, color: "hsl(var(--primary))" },
+    { name: t("porteurEquityInvestors", "Investisseurs"), value: project.equityBreakdown?.investors || 15, color: "hsl(var(--accent))" },
+    { name: t("porteurEquityAvailable", "Disponible"), value: project.equityBreakdown?.available || 0, color: "hsl(var(--muted-foreground))" },
   ];
 
   const handleOpenInvest = () => {
@@ -68,16 +62,8 @@ export default function InvestisseurProjetDetail({ id }: Props) {
 
   const handleInvest = async () => {
     const investAmount = amount || project.fundraising.minInvestment || 100;
-    console.log("[InvestisseurProjetDetail] 🚀 handleInvest initiated:", {
-      projectId: project.id,
-      projectName: project.name,
-      investAmount,
-      liveEquity,
-      investorProfile: profile,
-    });
 
     if (!Number.isFinite(investAmount) || investAmount <= 0) {
-      console.warn("[InvestisseurProjetDetail] ⚠️ Invalid invest amount:", investAmount);
       toast({
         title: lang === "fr" ? "Montant invalide" : "Invalid amount",
         description: lang === "fr" ? "Saisissez un montant positif valide." : "Please enter a valid positive amount.",
@@ -86,33 +72,31 @@ export default function InvestisseurProjetDetail({ id }: Props) {
       return;
     }
     if (investAmount < project.fundraising.minInvestment) {
-      console.warn("[InvestisseurProjetDetail] ⚠️ Amount below minimum ticket:", {
-        investAmount,
-        min: project.fundraising.minInvestment,
+      toast({
+        title: t("invInvestTooLow", "Montant insuffisant"),
+        description: `Ticket minimum requis : ${formatUSD(project.fundraising.minInvestment)}`,
+        variant: "destructive",
       });
-      toast({ title: t.invInvestTooLow, description: t.invInvestMinDesc(formatUSD(project.fundraising.minInvestment)), variant: "destructive" });
       return;
     }
     if (project.fundraising.maxInvestment && investAmount > project.fundraising.maxInvestment) {
-      console.warn("[InvestisseurProjetDetail] ⚠️ Amount above maximum ticket:", {
-        investAmount,
-        max: project.fundraising.maxInvestment,
+      toast({
+        title: t("invInvestTooHigh", "Montant trop élevé"),
+        description: `Ticket maximum autorisé : ${formatUSD(project.fundraising.maxInvestment)}`,
+        variant: "destructive",
       });
-      toast({ title: t.invInvestTooHigh, description: t.invInvestMaxDesc(formatUSD(project.fundraising.maxInvestment)), variant: "destructive" });
       return;
     }
     setSubmitting(true);
     try {
       const inv = await investInProject(project.id, investAmount, liveEquity);
-      console.log("[InvestisseurProjetDetail] ✅ Investment successfully recorded in store:", inv);
       await refreshData();
       toast({
-        title: t.invInvestConfirmed,
-        description: t.invInvestConfirmedDesc(formatUSD(investAmount), project.name, liveEquity.toFixed(2)),
+        title: t("invInvestConfirmed", "Investissement validé !"),
+        description: `Vous avez investi ${formatUSD(investAmount)} dans ${project.name} (${liveEquity.toFixed(2)}% d'equity).`,
       });
       setOpen(false);
     } catch (err: any) {
-      console.error("[InvestisseurProjetDetail] ❌ Investment error caught:", err);
       toast({
         title: lang === "fr" ? "Erreur" : "Error",
         description: err?.message || (lang === "fr" ? "L'investissement n'a pas pu être enregistré." : "The investment failed."),
@@ -134,7 +118,7 @@ export default function InvestisseurProjetDetail({ id }: Props) {
     <div className="py-6 px-4 md:px-6 space-y-5">
       <Link href="/investisseur/explorer">
         <Button variant="ghost" size="sm" className="gap-2 -ml-2">
-          <ArrowLeft className="w-4 h-4" /> {t.back}
+          <ArrowLeft className="w-4 h-4" /> {t("back", "Retour")}
         </Button>
       </Link>
 
@@ -153,19 +137,19 @@ export default function InvestisseurProjetDetail({ id }: Props) {
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <Button size="default" className="gap-2 shrink-0" data-testid="button-invest" onClick={handleOpenInvest}>
-            <Wallet className="w-4 h-4" /> {t.invInvestBtn}
+            <Wallet className="w-4 h-4" /> {t("invInvestBtn", "Investir")}
           </Button>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t.invInvestTitle(project.name)}</DialogTitle>
+              <DialogTitle>{t("invInvestTitle", `Investir dans ${project.name}`)}</DialogTitle>
               <DialogDescription>
-                {t.invInvestDesc(formatUSD(project.fundraising.minInvestment), formatUSD(project.fundraising.maxInvestment))}
+                {`Ticket minimum: ${formatUSD(project.fundraising.minInvestment)} | Ticket maximum: ${formatUSD(project.fundraising.maxInvestment)}`}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="amount">{t.invInvestAmount}</Label>
+                  <Label htmlFor="amount">{t("invInvestAmount", "Montant de souscription")}</Label>
                   <span className="text-xs text-muted-foreground">Min: {formatUSD(project.fundraising.minInvestment)}</span>
                 </div>
                 <Input
@@ -194,19 +178,19 @@ export default function InvestisseurProjetDetail({ id }: Props) {
               </div>
               <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{t.invInvestReceive}</span>
-                  <span className="font-bold text-primary">{liveEquity.toFixed(3)}% {t.invInvestEquity}</span>
+                  <span className="text-muted-foreground">{t("invInvestReceive", "Equity obtenue")}</span>
+                  <span className="font-bold text-primary">{liveEquity.toFixed(3)}%</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">{t.invInvestValuation}</span>
+                  <span className="text-muted-foreground">{t("invInvestValuation", "Valorisation globale")}</span>
                   <span>{formatUSD(Math.round((project.fundraising.targetAmountUSD / project.fundraising.equityPercent) * 100))}</span>
                 </div>
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>{t.cancel}</Button>
+              <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>{t("cancel", "Annuler")}</Button>
               <Button onClick={handleInvest} disabled={submitting} data-testid="button-confirm-invest">
-                {submitting ? t.loading : t.invInvestConfirm}
+                {submitting ? "..." : t("invInvestConfirm", "Confirmer l'investissement")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -215,10 +199,10 @@ export default function InvestisseurProjetDetail({ id }: Props) {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {[
-          { icon: DollarSign, label: t.invProjectRaised, value: formatUSD(project.fundraising.raisedAmount) },
-          { icon: TrendingUp, label: t.invProjectObjective, value: formatUSD(project.fundraising.targetAmountUSD) },
-          { icon: Users, label: t.invProjectInvestors, value: String(investments.length) },
-          { icon: Calendar, label: t.invProjectLaunched, value: formatDate(project.createdAt) },
+          { icon: DollarSign, label: t("invProjectRaised", "Collecté"), value: formatUSD(project.fundraising.raisedAmount) },
+          { icon: TrendingUp, label: t("invProjectObjective", "Objectif"), value: formatUSD(project.fundraising.targetAmountUSD) },
+          { icon: Users, label: t("invProjectInvestors", "Investisseurs"), value: String(investments.length) },
+          { icon: Calendar, label: t("invProjectLaunched", "Date de lancement"), value: formatDate(project.createdAt) },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="bg-card border rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between shadow-xs">
             <div className="flex items-center gap-2 mb-1.5">
@@ -231,7 +215,7 @@ export default function InvestisseurProjetDetail({ id }: Props) {
       </div>
 
       <div className="bg-card border rounded-2xl p-5 space-y-3">
-        <h2 className="text-sm font-semibold">{t.invProjectProgress}</h2>
+        <h2 className="text-sm font-semibold">{t("invProjectProgress", "Progression de la campagne")}</h2>
         <Progress value={percent} className="h-2" />
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{formatUSD(project.fundraising.raisedAmount)}</span>
@@ -241,26 +225,26 @@ export default function InvestisseurProjetDetail({ id }: Props) {
 
       <Tabs defaultValue="overview" className="w-full">
         <TabsList>
-          <TabsTrigger value="overview">{t.porteurOverview}</TabsTrigger>
-          <TabsTrigger value="team">{t.porteurTeam}</TabsTrigger>
-          <TabsTrigger value="equity">{t.porteurEquity}</TabsTrigger>
+          <TabsTrigger value="overview">{t("porteurOverview", "Aperçu")}</TabsTrigger>
+          <TabsTrigger value="team">{t("porteurTeam", "Équipe")}</TabsTrigger>
+          <TabsTrigger value="equity">{t("porteurEquity", "Équité")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-4">
           <div className="bg-card border rounded-2xl p-5 space-y-3 text-sm">
-            <h3 className="font-semibold">{t.invProjectAbout}</h3>
+            <h3 className="font-semibold">{t("invProjectAbout", "À propos du projet")}</h3>
             <p className="text-muted-foreground leading-relaxed">{project.shortDescription}</p>
             <div className="grid grid-cols-2 gap-3 pt-2">
               <div>
-                <div className="text-xs text-muted-foreground mb-0.5">{t.invProjectTargetMarket}</div>
+                <div className="text-xs text-muted-foreground mb-0.5">{t("invProjectTargetMarket", "Marché cible")}</div>
                 <div className="font-medium text-sm">{project.targetMarket}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-0.5">{t.invProjectMinInv}</div>
+                <div className="text-xs text-muted-foreground mb-0.5">{t("invProjectMinInv", "Ticket Min.")}</div>
                 <div className="font-medium text-sm">{formatUSD(project.fundraising.minInvestment)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground mb-0.5">{t.invProjectMaxInv}</div>
+                <div className="text-xs text-muted-foreground mb-0.5">{t("invProjectMaxInv", "Ticket Max.")}</div>
                 <div className="font-medium text-sm">{formatUSD(project.fundraising.maxInvestment)}</div>
               </div>
               <div>
@@ -272,8 +256,8 @@ export default function InvestisseurProjetDetail({ id }: Props) {
         </TabsContent>
 
         <TabsContent value="team" className="space-y-3 mt-4">
-          {project.team.map((member) => (
-            <div key={member.id} className="bg-card border rounded-2xl p-4 flex items-center gap-4">
+          {project.team.map((member, idx) => (
+            <div key={idx} className="bg-card border rounded-2xl p-4 flex items-center gap-4">
               <Avatar>
                 <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
                   {member.name.split(" ").map((n) => n[0]).join("")}
@@ -289,7 +273,7 @@ export default function InvestisseurProjetDetail({ id }: Props) {
 
         <TabsContent value="equity" className="mt-4">
           <div className="bg-card border rounded-2xl p-5">
-            <h3 className="text-sm font-semibold mb-4">{t.porteurCapitalDistrib}</h3>
+            <h3 className="text-sm font-semibold mb-4">{t("porteurCapitalDistrib", "Répartition du Capital")}</h3>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
