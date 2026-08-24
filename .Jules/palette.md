@@ -1,0 +1,3 @@
+## 2026-08-24 - Modal Accessibility and Processing States
+**Learning:** Icon-only modal close buttons in modal popups often lack proper screen reader labels (`aria-label`) and explicit input-to-label linking (`htmlFor`/`id`), reducing accessibility. Providing explicit ARIA labels and combining state text with an animated spinner (`Loader2` with `animate-spin`) improves both screen reader compatibility and visual feedback during async form submissions.
+**Action:** Always verify icon-only buttons have `aria-label` attributes and form inputs have explicit `id`/`htmlFor` associations along with loading spinners on submit buttons during async actions.

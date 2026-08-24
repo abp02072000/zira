@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Project, formatUSD, useAppData, useAuth } from "@shared/index";
-import { ShieldCheck, CheckCircle2, AlertCircle, X, ArrowRight, Lock } from "lucide-react";
+import { ShieldCheck, CheckCircle2, AlertCircle, X, ArrowRight, Lock, Loader2 } from "lucide-react";
 
 interface InvestModalProps {
   project: Project | null;
@@ -39,7 +39,8 @@ export function InvestModal({ project, isOpen, onClose }: InvestModalProps) {
       <div className="relative w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+          aria-label="Fermer la fenêtre"
+          className="absolute top-4 right-4 p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <X className="w-5 h-5" />
         </button>
@@ -81,12 +82,13 @@ export function InvestModal({ project, isOpen, onClose }: InvestModalProps) {
 
             {/* Investment Amount Input */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-foreground flex justify-between">
+              <label htmlFor="investment-amount" className="text-xs font-semibold text-foreground flex justify-between">
                 <span>Montant de votre investissement (USD)</span>
                 <span className="text-muted-foreground">Min : {formatUSD(min)}</span>
               </label>
               <div className="relative">
                 <input
+                  id="investment-amount"
                   type="number"
                   min={min}
                   max={max}
@@ -136,8 +138,17 @@ export function InvestModal({ project, isOpen, onClose }: InvestModalProps) {
                 disabled={isProcessing || amount < min}
                 className="px-6 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-white text-xs font-bold shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {isProcessing ? "Traitement..." : `Confirmer ${formatUSD(amount)}`}
-                <ArrowRight className="w-4 h-4" />
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Traitement...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Confirmer {formatUSD(amount)}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
             </div>
           </form>
